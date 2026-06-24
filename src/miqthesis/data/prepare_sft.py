@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import random
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -61,6 +62,61 @@ def _uid(*parts: Any) -> str:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
+def _record_solver_failure(
+    diagnostics: dict[str, Any],
+    canonical_smiles: str,
+    property_name: str,
+    error: Exception,
+) -> None:
+    diagnostics["solver_failures"] += 1
+    diagnostics["failure_types"][type(error).__name__] += 1
+    diagnostics["failed_properties"][property_name] += 1
+    diagnostics["failed_molecules"].add(canonical_smiles)
+
+
+def _select_safe_properties(
+    generator: Any,
+    evaluation_smiles: str,
+    canonical_smiles: str,
+    property_pool: list[str],
+    requested: int,
+    rng: random.Random,
+    failed_pairs: set[tuple[str, str]],
+    diagnostics: dict[str, Any],
+) -> list[tuple[str, Any]]:
+    """Select properties whose upstream symbolic solver succeeds for this molecule."""
+    selected: list[tuple[str, Any]] = []
+    tried: set[str] = set()
+    draws = 0
+    max_draws = max(len(property_pool) * 4, requested * 8)
+    while (
+        len(selected) < requested
+        and len(tried) < len(property_pool)
+        and draws < max_draws
+    ):
+        draws += 1
+        property_name = rng.choice(property_pool)
+        if property_name in tried:
+            continue
+        tried.add(property_name)
+        failure_key = (canonical_smiles, property_name)
+        if failure_key in failed_pairs:
+            continue
+        try:
+            value = generator.compute_property(evaluation_smiles, property_name)
+        except Exception as error:
+            # moleculariq-core contains recursive graph algorithms that can raise
+            # RecursionError on pathological molecules. Other property-specific
+            # solver failures should be isolated in exactly the same way.
+            failed_pairs.add(failure_key)
+            _record_solver_failure(
+                diagnostics, canonical_smiles, property_name, error
+            )
+            continue
+        selected.append((property_name, value))
+    return selected
+
+
 def _generated_rows(
     molecules: list[str],
     task_family: str,
@@ -68,6 +124,7 @@ def _generated_rows(
     seed: int,
     randomized_probability: float,
     kekulized_probability: float,
+    diagnostics: dict[str, Any] | None = None,
 ) -> Iterable[dict[str, Any]]:
     try:
         from moleculariq_core import MolecularIQD
@@ -80,37 +137,125 @@ def _generated_rows(
     if not count_properties or not index_properties:
         raise RuntimeError("moleculariq-core exposed no count/index properties")
 
-    for index in range(total):
-        canonical_smiles = molecules[index % len(molecules)]
+    diagnostics = diagnostics if diagnostics is not None else {}
+    diagnostics.setdefault("solver_failures", 0)
+    diagnostics.setdefault("row_retries", 0)
+    diagnostics.setdefault("failure_types", Counter())
+    diagnostics.setdefault("failed_properties", Counter())
+    diagnostics.setdefault("failed_molecules", set())
+    failed_pairs: set[tuple[str, str]] = set()
+    produced = 0
+    attempts = 0
+    max_attempts = max(total * 20, len(molecules) * 2, 1_000)
+
+    while produced < total:
+        if attempts >= max_attempts:
+            raise RuntimeError(
+                f"Could only generate {produced:,}/{total:,} {task_family} examples "
+                f"after {attempts:,} attempts. Solver failures: "
+                f"{diagnostics['solver_failures']:,}. See sft_manifest.json diagnostics."
+            )
+        canonical_smiles = molecules[attempts % len(molecules)]
+        attempts += 1
         smiles, randomized, kekulized = _represent_smiles(
             canonical_smiles, rng, randomized_probability, kekulized_probability
         )
         load = rng.randint(1, 5)
         if task_family == "count":
-            properties = rng.sample(count_properties, k=min(load, len(count_properties)))
-            question, answer, metadata = generator.generate_count_question(smiles, properties)
+            selected = _select_safe_properties(
+                generator,
+                smiles,
+                canonical_smiles,
+                count_properties,
+                min(load, len(count_properties)),
+                rng,
+                failed_pairs,
+                diagnostics,
+            )
+            properties = [property_name for property_name, _ in selected]
+            if len(properties) < load:
+                diagnostics["row_retries"] += 1
+                continue
+            try:
+                question, answer, metadata = generator.generate_count_question(
+                    smiles, properties
+                )
+            except Exception as error:
+                diagnostics["row_retries"] += 1
+                for property_name in properties:
+                    failed_pairs.add((canonical_smiles, property_name))
+                    _record_solver_failure(
+                        diagnostics, canonical_smiles, property_name, error
+                    )
+                continue
             constraints = None
         elif task_family == "index":
-            properties = rng.sample(index_properties, k=min(load, len(index_properties)))
-            question, answer, metadata = generator.generate_index_question(smiles, properties)
+            selected = _select_safe_properties(
+                generator,
+                smiles,
+                canonical_smiles,
+                index_properties,
+                min(load, len(index_properties)),
+                rng,
+                failed_pairs,
+                diagnostics,
+            )
+            properties = [property_name for property_name, _ in selected]
+            if len(properties) < load:
+                diagnostics["row_retries"] += 1
+                continue
+            try:
+                question, answer, metadata = generator.generate_index_question(
+                    smiles, properties
+                )
+            except Exception as error:
+                diagnostics["row_retries"] += 1
+                for property_name in properties:
+                    failed_pairs.add((canonical_smiles, property_name))
+                    _record_solver_failure(
+                        diagnostics, canonical_smiles, property_name, error
+                    )
+                continue
             constraints = None
         elif task_family == "generation":
-            properties = rng.sample(count_properties, k=min(load, len(count_properties)))
+            selected = _select_safe_properties(
+                generator,
+                canonical_smiles,
+                canonical_smiles,
+                count_properties,
+                min(load, len(count_properties)),
+                rng,
+                failed_pairs,
+                diagnostics,
+            )
+            properties = [property_name for property_name, _ in selected]
+            if len(properties) < load:
+                diagnostics["row_retries"] += 1
+                continue
             constraints = [
                 {
-                    "property": prop,
+                    "property": property_name,
                     "operator": "=",
-                    "value": generator.compute_property(canonical_smiles, prop),
+                    "value": value,
                 }
-                for prop in properties
+                for property_name, value in selected
             ]
-            question, metadata = generator.generate_constraint_question(constraints)
+            try:
+                question, metadata = generator.generate_constraint_question(constraints)
+            except Exception as error:
+                diagnostics["row_retries"] += 1
+                for property_name in properties:
+                    failed_pairs.add((canonical_smiles, property_name))
+                    _record_solver_failure(
+                        diagnostics, canonical_smiles, property_name, error
+                    )
+                continue
             answer = {"smiles": canonical_smiles}
         else:
             raise ValueError(f"Unknown task family: {task_family}")
         yield NormalizedExample.from_row(
             {
-                "uid": _uid(seed, task_family, index, canonical_smiles, properties),
+                "uid": _uid(seed, task_family, produced, canonical_smiles, properties),
                 "question": question,
                 "target": answer,
                 "task_type": metadata["task_type"],
@@ -124,6 +269,7 @@ def _generated_rows(
                 "generator_metadata": metadata,
             }
         ).to_sft()
+        produced += 1
 
 
 def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
@@ -180,8 +326,11 @@ def prepare(config_path: str | Path) -> dict[str, int]:
     counts: dict[str, int] = {}
 
     family_rows: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    generation_diagnostics: dict[str, dict[str, Any]] = {}
     for family in ("count", "index", "generation"):
         sizes = config["sizes"][family]
+        train_diagnostics: dict[str, Any] = {}
+        validation_diagnostics: dict[str, Any] = {}
         family_rows[family] = {
             "train": list(
                 _generated_rows(
@@ -191,6 +340,7 @@ def prepare(config_path: str | Path) -> dict[str, int]:
                     seed + len(family),
                     random_p,
                     kekule_p,
+                    train_diagnostics,
                 )
             ),
             "val": list(
@@ -201,8 +351,13 @@ def prepare(config_path: str | Path) -> dict[str, int]:
                     seed + 1_000 + len(family),
                     random_p,
                     kekule_p,
+                    validation_diagnostics,
                 )
             ),
+        }
+        generation_diagnostics[family] = {
+            "train": train_diagnostics,
+            "val": validation_diagnostics,
         }
         for split in ("train", "val"):
             name = f"sft_{family}_{split}.jsonl"
@@ -229,6 +384,9 @@ def prepare(config_path: str | Path) -> dict[str, int]:
                 "train_molecules": len(train_molecules),
                 "validation_molecules": len(validation_molecules),
                 "molecule_split_overlap": 0,
+                "generation_diagnostics": _json_safe_diagnostics(
+                    generation_diagnostics
+                ),
             },
             indent=2,
         )
@@ -236,6 +394,19 @@ def prepare(config_path: str | Path) -> dict[str, int]:
         encoding="utf-8",
     )
     return counts
+
+
+def _json_safe_diagnostics(value: Any) -> Any:
+    if isinstance(value, Counter):
+        return dict(value.most_common())
+    if isinstance(value, set):
+        return sorted(value)
+    if isinstance(value, dict):
+        return {
+            key: _json_safe_diagnostics(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 def main() -> None:

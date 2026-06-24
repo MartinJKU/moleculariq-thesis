@@ -1,8 +1,10 @@
 import json
+import random
+from collections import Counter
 
 import pytest
 
-from miqthesis.data.prepare_sft import split_molecules
+from miqthesis.data.prepare_sft import _select_safe_properties, split_molecules
 from miqthesis.data.schemas import NormalizedExample
 from miqthesis.data.splits import assert_disjoint_uids, deterministic_split
 
@@ -41,3 +43,34 @@ def test_molecule_level_validation_split_is_disjoint():
     train, validation = split_molecules(molecules, validation_fraction=0.1, seed=42)
     assert set(train).isdisjoint(validation)
     assert len(train) + len(validation) == len(molecules)
+
+
+def test_property_selection_skips_upstream_recursion_errors():
+    class FakeGenerator:
+        def compute_property(self, smiles, property_name):
+            if property_name == "longest_carbon_chain_count":
+                raise RecursionError("pathological recursive traversal")
+            return 2
+
+    diagnostics = {
+        "solver_failures": 0,
+        "row_retries": 0,
+        "failure_types": Counter(),
+        "failed_properties": Counter(),
+        "failed_molecules": set(),
+    }
+    failed_pairs = set()
+    selected = _select_safe_properties(
+        FakeGenerator(),
+        "CCO",
+        "CCO",
+        ["longest_carbon_chain_count", "ring_count", "carbon_atom_count"],
+        requested=2,
+        rng=random.Random(1),
+        failed_pairs=failed_pairs,
+        diagnostics=diagnostics,
+    )
+    assert len(selected) == 2
+    assert all(name != "longest_carbon_chain_count" for name, _ in selected)
+    assert diagnostics["failure_types"]["RecursionError"] == 1
+    assert ("CCO", "longest_carbon_chain_count") in failed_pairs
