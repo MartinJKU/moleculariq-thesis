@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=miq_grpo_format
-#SBATCH --account=<PROJECT_ACCOUNT>
+#SBATCH --account=EUHPC_D27_069
 #SBATCH --partition=boost_usr_prod
 #SBATCH --qos=normal
 #SBATCH --nodes=1
@@ -15,4 +15,3 @@ set -euo pipefail
 cd "$WORK/moleculariq-thesis"
 source scripts/00_setup_env.sh
 python -m miqthesis.training.train_grpo --config configs/grpo/qwen05_format_reward.yaml
-

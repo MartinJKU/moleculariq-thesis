@@ -66,7 +66,7 @@ and must run as a SLURM job rather than on a Leonardo login node.
 
 ## Training
 
-Edit `<PROJECT_ACCOUNT>` in `slurm/*.slurm`, then submit:
+The SLURM jobs are configured for account `EUHPC_D27_069`. Submit:
 
 ```bash
 sbatch slurm/sft_multitask_debug.slurm

@@ -10,7 +10,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--template", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--account", default="<PROJECT_ACCOUNT>")
+    parser.add_argument("--account", default="EUHPC_D27_069")
     parser.add_argument("--job_name", required=True)
     parser.add_argument("--command", required=True)
     parser.add_argument("--gpus", type=int, default=1)
@@ -31,4 +31,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

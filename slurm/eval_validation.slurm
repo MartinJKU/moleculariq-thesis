@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=miq_eval_validation
-#SBATCH --account=<PROJECT_ACCOUNT>
+#SBATCH --account=EUHPC_D27_069
 #SBATCH --partition=boost_usr_prod
 #SBATCH --qos=normal
 #SBATCH --nodes=1
@@ -15,4 +15,3 @@ set -euo pipefail
 cd "$WORK/moleculariq-thesis"
 source scripts/00_setup_env.sh
 bash scripts/06a_eval_validation.sh
-

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=miq_eval_all
-#SBATCH --account=<PROJECT_ACCOUNT>
+#SBATCH --account=EUHPC_D27_069
 #SBATCH --partition=boost_usr_prod
 #SBATCH --qos=normal
 #SBATCH --nodes=1
@@ -16,4 +16,3 @@ cd "$WORK/moleculariq-thesis"
 source scripts/00_setup_env.sh
 bash scripts/06_eval_model.sh A
 bash scripts/07_collect_results.sh
-

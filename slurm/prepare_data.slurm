@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=miq_prepare_data
-#SBATCH --account=<PROJECT_ACCOUNT>
+#SBATCH --account=EUHPC_D27_069
 #SBATCH --partition=lrd_all_serial
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
