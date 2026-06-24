@@ -1,0 +1,15 @@
+protocol: A
+task: moleculariq_inline
+system_prompt: null
+extraction_function: moleculariq_eval_default
+batch_size: auto
+dtype: bfloat16
+log_samples: true
+generation:
+  temperature: 0.7
+  top_p: 0.95
+  top_k: 50
+  max_new_tokens: 512
+  num_repeats: 3
+output_root: results/raw/lm_eval/protocol_a
+

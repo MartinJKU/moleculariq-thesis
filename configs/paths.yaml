@@ -1,0 +1,9 @@
+project_root: ${MIQ_PROJECT_ROOT:-.}
+data_root: ${MIQ_DATA_ROOT:-data}
+raw_data_dir: ${MIQ_RAW_DATA_DIR:-data/raw}
+processed_data_dir: ${MIQ_PROCESSED_DATA_DIR:-data/processed}
+checkpoint_dir: ${MIQ_CHECKPOINT_DIR:-checkpoints}
+results_dir: ${MIQ_RESULTS_DIR:-results}
+logs_dir: ${MIQ_LOGS_DIR:-logs}
+moleculariq_eval_dir: ${MOLECULARIQ_EVAL_DIR:-external/moleculariq-eval}
+

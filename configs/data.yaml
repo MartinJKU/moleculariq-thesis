@@ -1,0 +1,25 @@
+seed: 42
+input_train_pool: data/processed/train_pool_filtered.parquet
+benchmark_test: data/processed/benchmark_test.parquet
+output_dir: data/processed
+validation_fraction: 0.04
+representation:
+  randomized_probability: 0.25
+  kekulized_probability: 0.25
+sizes:
+  count:
+    train: 50000
+    val: 2000
+  index:
+    train: 50000
+    val: 2000
+  generation:
+    train: 50000
+    val: 2000
+  multitask:
+    train: 150000
+    val: 5000
+  grpo:
+    train: 50000
+    val: 2000
+

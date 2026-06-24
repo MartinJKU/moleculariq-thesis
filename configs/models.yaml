@@ -1,0 +1,63 @@
+models:
+  base_qwen05:
+    model_path: Qwen/Qwen2.5-0.5B
+    eval_task: moleculariq_inline
+    chat_template: false
+    type: baseline
+  instruct_qwen05:
+    model_path: Qwen/Qwen2.5-0.5B-Instruct
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: baseline
+  sft_count:
+    model_path: checkpoints/eval/sft_count
+    leaderboard_model_path: checkpoints/sft_count
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: sft
+  sft_index:
+    model_path: checkpoints/eval/sft_index
+    leaderboard_model_path: checkpoints/sft_index
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: sft
+  sft_generation:
+    model_path: checkpoints/eval/sft_generation
+    leaderboard_model_path: checkpoints/sft_generation
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: sft
+  sft_multitask:
+    model_path: checkpoints/eval/sft_multitask
+    leaderboard_model_path: checkpoints/sft_multitask
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: sft
+  grpo_format:
+    model_path: checkpoints/eval/grpo_format
+    leaderboard_model_path: checkpoints/grpo_format
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: grpo
+  grpo_verifier:
+    model_path: checkpoints/eval/grpo_verifier
+    leaderboard_model_path: checkpoints/grpo_verifier
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: grpo
+  grpo_verifier_ablation:
+    model_path: checkpoints/eval/grpo_verifier_ablation
+    leaderboard_model_path: checkpoints/grpo_verifier_ablation
+    eval_task: moleculariq_pass_at_k
+    chat_template: true
+    type: grpo
+    optional: true
+
+size_escalation:
+  decision_metric: avg_accuracy
+  validation_only: true
+  required_margin_points: 2.0
+  ladder:
+    - Qwen/Qwen2.5-0.5B
+    - Qwen/Qwen2.5-1.5B
+    - Qwen/Qwen2.5-3B

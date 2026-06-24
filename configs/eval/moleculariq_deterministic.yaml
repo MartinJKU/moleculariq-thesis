@@ -1,0 +1,17 @@
+protocol: A
+protocol_label: A_DETERMINISTIC
+task: moleculariq_pass_at_k
+system_prompt: >-
+  You are an expert chemist. Provide answers in <answer>JSON</answer> format.
+extraction_function: moleculariq_eval_default
+batch_size: auto
+dtype: bfloat16
+log_samples: true
+generation:
+  temperature: 0.0
+  top_p: 1.0
+  top_k: 0
+  max_new_tokens: 512
+  num_repeats: 1
+output_root: results/raw/lm_eval/protocol_a_deterministic
+

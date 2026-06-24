@@ -1,0 +1,12 @@
+protocol: VALIDATION
+input_file: data/processed/sft_multitask_val.jsonl
+output_dir: results/validation
+batch_size: 4
+dtype: bfloat16
+generation:
+  temperature: 0.7
+  top_p: 0.95
+  top_k: 50
+  max_new_tokens: 512
+  num_repeats: 3
+

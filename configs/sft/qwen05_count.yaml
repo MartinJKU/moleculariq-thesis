@@ -1,0 +1,25 @@
+run_id: sft_count
+model_name_or_path: Qwen/Qwen2.5-0.5B
+train_file: data/processed/sft_count_train.jsonl
+validation_file: data/processed/sft_count_val.jsonl
+output_dir: checkpoints/sft_count
+max_seq_length: 1024
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 32
+learning_rate: 1.0e-5
+num_train_epochs: 2
+warmup_ratio: 0.03
+lr_scheduler_type: cosine
+weight_decay: 0.01
+bf16: true
+gradient_checkpointing: true
+logging_steps: 10
+eval_steps: 500
+save_steps: 500
+save_total_limit: 3
+save_safetensors: true
+seed: 42
+report_to: wandb
+full_parameter_finetuning: true
+
