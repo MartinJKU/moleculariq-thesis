@@ -55,8 +55,7 @@ Record the exact `moleculariq-eval` commit. The wrapper also writes it to each
 
 ```bash
 bash scripts/01_download_data.sh
-prepare_job=$(sbatch --parsable slurm/prepare_data.slurm)
-sbatch --dependency=afterok:"$prepare_job" slurm/prepare_data_finalize.slurm
+sbatch slurm/prepare_data.slurm
 ```
 
 This produces `data/processed/leakage_report.json`, filtered molecules, SFT
@@ -64,9 +63,10 @@ JSONL files, and prompt-only GRPO files. The training pool contains SMILES, so
 questions and exact targets are generated with `moleculariq-core` after leakage
 filtering. The corpus build is streamed to disk, but it remains CPU-intensive
 and must run as a SLURM job rather than on a Leonardo login node. The provided
-job uses an 18-task array on the free `lrd_all_serial` partition. Each shard
-stays within its four-core, roughly 30 GB RAM, four-hour limits; a dependent
-finalization job assembles the shards and creates GRPO files.
+job uses a self-chaining sequence of 18 jobs on the free `lrd_all_serial`
+partition. Only one shard is submitted at a time, avoiding the partition's
+per-user submitted-job limit. Each shard stays within its four-core, roughly
+30 GB RAM, four-hour limits; the final shard submits the assembly/GRPO job.
 
 ## Training
 
