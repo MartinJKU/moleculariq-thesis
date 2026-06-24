@@ -21,8 +21,10 @@ from miqthesis.training.rewards import (
 from miqthesis.training.utils import (
     assert_full_parameter_config,
     load_yaml,
+    require_cuda,
     require_local_model,
     set_seed,
+    transformers_dtype_kwargs,
     write_json,
 )
 
@@ -112,6 +114,7 @@ def train(
     config["model_name_or_path"] = str(
         require_local_model(config["model_name_or_path"])
     )
+    require_cuda("GRPO")
     set_seed(int(config.get("seed", 42)))
     from datasets import load_dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -124,11 +127,11 @@ def train(
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model_kwargs = {"torch_dtype": "auto"}
+    model_kwargs = transformers_dtype_kwargs("auto")
     if config.get("bf16"):
         import torch
 
-        model_kwargs["torch_dtype"] = torch.bfloat16
+        model_kwargs = transformers_dtype_kwargs(torch.bfloat16)
     model = AutoModelForCausalLM.from_pretrained(
         config["model_name_or_path"], local_files_only=True, **model_kwargs
     )
@@ -183,15 +186,22 @@ def train(
         report_to=config.get("report_to", "none"),
         seed=int(config.get("seed", 42)),
     )
-    evaluation_key = (
-        "eval_strategy"
-        if "eval_strategy" in inspect.signature(GRPOConfig).parameters
-        else "evaluation_strategy"
-    )
+    argument_parameters = inspect.signature(GRPOConfig).parameters
+    if "eval_strategy" in argument_parameters:
+        evaluation_key = "eval_strategy"
+    elif "evaluation_strategy" in argument_parameters:
+        evaluation_key = "evaluation_strategy"
+    else:
+        raise RuntimeError(
+            "Installed TRL exposes neither eval_strategy nor evaluation_strategy "
+            "on GRPOConfig"
+        )
     grpo_kwargs[evaluation_key] = "steps"
-    if "max_prompt_length" in inspect.signature(GRPOConfig).parameters:
+    if "save_safetensors" in argument_parameters:
+        grpo_kwargs["save_safetensors"] = bool(config.get("save_safetensors", True))
+    if "max_prompt_length" in argument_parameters:
         grpo_kwargs["max_prompt_length"] = int(config["max_prompt_length"])
-    if "include_num_input_tokens_seen" in inspect.signature(GRPOConfig).parameters:
+    if "include_num_input_tokens_seen" in argument_parameters:
         grpo_kwargs["include_num_input_tokens_seen"] = True
     arguments = GRPOConfig(**grpo_kwargs)
     trainer = GRPOTrainer(

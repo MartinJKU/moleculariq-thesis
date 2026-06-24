@@ -10,8 +10,10 @@ from miqthesis.training.callbacks import ResourceLoggingCallback
 from miqthesis.training.utils import (
     assert_full_parameter_config,
     load_yaml,
+    require_cuda,
     require_local_model,
     set_seed,
+    transformers_dtype_kwargs,
     write_json,
 )
 
@@ -58,6 +60,7 @@ def train(
     config["model_name_or_path"] = str(
         require_local_model(config["model_name_or_path"])
     )
+    require_cuda("SFT")
     set_seed(int(config.get("seed", 42)))
     from datasets import load_dataset
     from transformers import (
@@ -73,11 +76,11 @@ def train(
     tokenizer.chat_template = QWEN_CHAT_TEMPLATE
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model_kwargs: dict[str, Any] = {"torch_dtype": "auto"}
+    model_kwargs: dict[str, Any] = transformers_dtype_kwargs("auto")
     if config.get("bf16"):
         import torch
 
-        model_kwargs["torch_dtype"] = torch.bfloat16
+        model_kwargs = transformers_dtype_kwargs(torch.bfloat16)
     if config.get("flash_attention_2"):
         model_kwargs["attn_implementation"] = "flash_attention_2"
     model = AutoModelForCausalLM.from_pretrained(
@@ -131,18 +134,29 @@ def train(
         save_strategy=config.get("save_strategy", "steps"),
         save_steps=int(config["save_steps"]),
         save_total_limit=int(config["save_total_limit"]),
-        save_safetensors=bool(config["save_safetensors"]),
         report_to=config.get("report_to", "none"),
         remove_unused_columns=False,
         seed=int(config.get("seed", 42)),
     )
-    evaluation_key = (
-        "eval_strategy"
-        if "eval_strategy" in inspect.signature(TrainingArguments).parameters
-        else "evaluation_strategy"
-    )
+    argument_parameters = inspect.signature(TrainingArguments).parameters
+    if "eval_strategy" in argument_parameters:
+        evaluation_key = "eval_strategy"
+    elif "evaluation_strategy" in argument_parameters:
+        evaluation_key = "evaluation_strategy"
+    else:
+        raise RuntimeError(
+            "Installed Transformers exposes neither eval_strategy nor "
+            "evaluation_strategy on TrainingArguments"
+        )
     training_kwargs[evaluation_key] = "steps"
-    if "include_num_input_tokens_seen" in inspect.signature(TrainingArguments).parameters:
+    if "save_safetensors" in argument_parameters:
+        training_kwargs["save_safetensors"] = bool(config["save_safetensors"])
+    else:
+        print(
+            "[compat] TrainingArguments no longer accepts save_safetensors; "
+            "using the library's safetensors checkpoint default."
+        )
+    if "include_num_input_tokens_seen" in argument_parameters:
         training_kwargs["include_num_input_tokens_seen"] = True
     arguments = TrainingArguments(**training_kwargs)
     trainer = Trainer(

@@ -27,6 +27,9 @@ source "$VENV_DIR/bin/activate"
 
 if [[ "${MIQ_INSTALL_DEPS:-0}" == "1" ]]; then
   python -m pip install --upgrade pip
+  python -m pip install \
+    "torch==2.5.1" "torchvision==0.20.1" \
+    --index-url https://download.pytorch.org/whl/cu121
   python -m pip install -e ".[train,chem]"
 fi
 

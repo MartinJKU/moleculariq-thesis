@@ -10,7 +10,12 @@ import pandas as pd
 
 from miqthesis.constants import QWEN_CHAT_TEMPLATE
 from miqthesis.evaluation.verify_outputs import verify_prediction
-from miqthesis.training.utils import load_yaml, require_local_model
+from miqthesis.training.utils import (
+    load_yaml,
+    require_cuda,
+    require_local_model,
+    transformers_dtype_kwargs,
+)
 
 
 def _batches(rows: list[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
@@ -69,6 +74,7 @@ def evaluate_model(
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    require_cuda("Validation")
     model_path = str(require_local_model(model_path))
     tokenizer = AutoTokenizer.from_pretrained(
         model_path, use_fast=True, local_files_only=True
@@ -80,9 +86,9 @@ def evaluate_model(
     dtype = torch.bfloat16 if config.get("dtype") == "bfloat16" else "auto"
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        torch_dtype=dtype,
         device_map="auto",
         local_files_only=True,
+        **transformers_dtype_kwargs(dtype),
     )
     model.eval()
     generation = config["generation"]

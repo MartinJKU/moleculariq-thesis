@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from miqthesis.training.utils import load_yaml, require_local_model
+from miqthesis.training.utils import load_yaml, require_cuda, require_local_model
 
 
 def _provenance(eval_repo: str | None) -> dict[str, Any]:
@@ -123,6 +123,8 @@ def run(
     dry_run: bool = False,
     eval_repo: str | None = None,
 ) -> None:
+    if not dry_run:
+        require_cuda("MolecularIQ evaluation")
     eval_config = load_yaml(config_path)
     models = load_yaml(models_path)["models"]
     selected = model_ids or [

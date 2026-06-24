@@ -55,6 +55,37 @@ def set_seed(seed: int) -> None:
         pass
 
 
+def require_cuda(context: str = "Training") -> None:
+    try:
+        import torch
+    except ImportError as exc:
+        raise RuntimeError(f"{context} requires PyTorch with CUDA support") from exc
+
+    if torch.cuda.is_available():
+        return
+
+    torch_version = getattr(torch, "__version__", "unknown")
+    cuda_version = getattr(getattr(torch, "version", None), "cuda", None)
+    raise RuntimeError(
+        f"{context} requires a working CUDA GPU, but PyTorch cannot initialize CUDA "
+        f"(torch={torch_version}, torch CUDA build={cuda_version or 'CPU-only'}). "
+        "On Leonardo, run `bash scripts/00_repair_gpu_stack_leonardo.sh` from a "
+        "login node, then resubmit the SLURM job."
+    )
+
+
+def transformers_dtype_kwargs(dtype: Any, version: str | None = None) -> dict[str, Any]:
+    if version is None:
+        import transformers
+
+        version = transformers.__version__
+    try:
+        major = int(version.split(".", maxsplit=1)[0])
+    except (AttributeError, ValueError) as exc:
+        raise ValueError(f"Cannot parse Transformers version: {version!r}") from exc
+    return {"dtype" if major >= 5 else "torch_dtype": dtype}
+
+
 def assert_full_parameter_config(config: dict[str, Any]) -> None:
     if config.get("full_parameter_finetuning") is not True:
         raise ValueError("full_parameter_finetuning must be explicitly true")
