@@ -1,4 +1,5 @@
 seed: 42
+preparation_shard_size: 10000
 input_train_pool: data/processed/train_pool_filtered.parquet
 benchmark_test: data/processed/benchmark_test.parquet
 output_dir: data/processed
@@ -22,4 +23,3 @@ sizes:
   grpo:
     train: 50000
     val: 2000
-

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import random
+import shutil
 from collections import Counter
 from contextlib import ExitStack
 from pathlib import Path
@@ -369,8 +370,7 @@ def split_molecules(
     return train, validation
 
 
-def prepare(config_path: str | Path) -> dict[str, int]:
-    config = load_yaml(config_path)
+def _preparation_context(config: dict[str, Any]) -> dict[str, Any]:
     pool = pd.read_parquet(config["input_train_pool"])
     smiles_column = (
         "canonical_smiles" if "canonical_smiles" in pool.columns else "original_smiles"
@@ -378,14 +378,208 @@ def prepare(config_path: str | Path) -> dict[str, int]:
     molecules = [str(value) for value in pool[smiles_column].dropna().unique()]
     if not molecules:
         raise RuntimeError("No molecules available for SFT generation")
-    output_dir = Path(config["output_dir"])
     seed = int(config.get("seed", 42))
     train_molecules, validation_molecules = split_molecules(
         molecules, float(config.get("validation_fraction", 0.04)), seed
     )
     representation = config.get("representation", {})
-    random_p = float(representation.get("randomized_probability", 0.25))
-    kekule_p = float(representation.get("kekulized_probability", 0.25))
+    return {
+        "output_dir": Path(config["output_dir"]),
+        "seed": seed,
+        "train_molecules": train_molecules,
+        "validation_molecules": validation_molecules,
+        "randomized_probability": float(
+            representation.get("randomized_probability", 0.25)
+        ),
+        "kekulized_probability": float(
+            representation.get("kekulized_probability", 0.25)
+        ),
+    }
+
+
+def _shard_specs(
+    config: dict[str, Any], shard_size: int | None = None
+) -> list[dict[str, Any]]:
+    shard_size = int(
+        shard_size or config.get("preparation_shard_size", 10_000)
+    )
+    if shard_size <= 0:
+        raise ValueError("preparation_shard_size must be positive")
+    specs = []
+    for family in ("count", "index", "generation"):
+        for split in ("train", "val"):
+            total = int(config["sizes"][family][split])
+            num_shards = (total + shard_size - 1) // shard_size
+            for shard_index in range(num_shards):
+                start = shard_index * shard_size
+                specs.append(
+                    {
+                        "family": family,
+                        "split": split,
+                        "shard_index": shard_index,
+                        "num_shards": num_shards,
+                        "size": min(shard_size, total - start),
+                    }
+                )
+    return specs
+
+
+def prepare_shard(
+    config_path: str | Path,
+    task_index: int,
+    shard_size: int | None = None,
+) -> dict[str, Any]:
+    config = load_yaml(config_path)
+    context = _preparation_context(config)
+    specs = _shard_specs(config, shard_size)
+    if not 0 <= task_index < len(specs):
+        raise ValueError(
+            f"task_index must be in [0, {len(specs) - 1}], got {task_index}"
+        )
+    spec = specs[task_index]
+    family = spec["family"]
+    split = spec["split"]
+    diagnostics: dict[str, Any] = {}
+    molecules = (
+        context["train_molecules"]
+        if split == "train"
+        else context["validation_molecules"]
+    )
+    split_offset = 0 if split == "train" else 10_000
+    family_offset = {"count": 100, "index": 200, "generation": 300}[family]
+    shard_seed = (
+        context["seed"] + family_offset + split_offset + spec["shard_index"]
+    )
+    part_name = (
+        f"sft_{family}_{split}.part-{spec['shard_index']:03d}"
+        f"-of-{spec['num_shards']:03d}.jsonl"
+    )
+    part_path = context["output_dir"] / "parts" / part_name
+    count = _write_jsonl(
+        part_path,
+        _generated_rows(
+            molecules,
+            family,
+            spec["size"],
+            shard_seed,
+            context["randomized_probability"],
+            context["kekulized_probability"],
+            diagnostics,
+        ),
+        expected=spec["size"],
+    )
+    metadata = {
+        "task_index": task_index,
+        "spec": spec,
+        "count": count,
+        "diagnostics": _json_safe_diagnostics(diagnostics),
+    }
+    part_path.with_suffix(".meta.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
+    return metadata
+
+
+def _concatenate_parts(
+    part_paths: list[Path], destination: Path, expected: int
+) -> int:
+    missing = [str(path) for path in part_paths if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Missing preparation shards:\n" + "\n".join(missing)
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with destination.open("w", encoding="utf-8", newline="\n") as output:
+        for part_path in part_paths:
+            with part_path.open("r", encoding="utf-8") as source:
+                shutil.copyfileobj(source, output, length=1024 * 1024)
+            with part_path.open("r", encoding="utf-8") as source:
+                count += sum(1 for line in source if line.strip())
+    if count != expected:
+        raise RuntimeError(
+            f"Expected {expected:,} rows in {destination}, found {count:,}"
+        )
+    print(f"{destination.name}: assembled ({count:,} rows)", flush=True)
+    return count
+
+
+def finalize_shards(
+    config_path: str | Path, shard_size: int | None = None
+) -> dict[str, int]:
+    config = load_yaml(config_path)
+    context = _preparation_context(config)
+    output_dir = context["output_dir"]
+    specs = _shard_specs(config, shard_size)
+    counts: dict[str, int] = {}
+    diagnostics: dict[str, Any] = {}
+    for family in ("count", "index", "generation"):
+        diagnostics[family] = {}
+        for split in ("train", "val"):
+            matching = [
+                spec
+                for spec in specs
+                if spec["family"] == family and spec["split"] == split
+            ]
+            part_paths = [
+                output_dir
+                / "parts"
+                / (
+                    f"sft_{family}_{split}.part-{spec['shard_index']:03d}"
+                    f"-of-{spec['num_shards']:03d}.jsonl"
+                )
+                for spec in matching
+            ]
+            destination = output_dir / f"sft_{family}_{split}.jsonl"
+            expected = int(config["sizes"][family][split])
+            counts[destination.name] = _concatenate_parts(
+                part_paths, destination, expected
+            )
+            diagnostics[family][split] = [
+                json.loads(path.with_suffix(".meta.json").read_text(encoding="utf-8"))
+                for path in part_paths
+            ]
+
+    for split in ("train", "val"):
+        name = f"sft_multitask_{split}.jsonl"
+        counts[name] = _interleave_jsonl(
+            [
+                output_dir / f"sft_{family}_{split}.jsonl"
+                for family in ("count", "index", "generation")
+            ],
+            output_dir / name,
+            int(config["sizes"]["multitask"][split]),
+            context["seed"] + (200 if split == "train" else 201),
+            counts,
+        )
+    (output_dir / "sft_manifest.json").write_text(
+        json.dumps(
+            {
+                "config": config,
+                "counts": counts,
+                "train_molecules": len(context["train_molecules"]),
+                "validation_molecules": len(context["validation_molecules"]),
+                "molecule_split_overlap": 0,
+                "preparation_mode": "sharded",
+                "generation_diagnostics": diagnostics,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return counts
+
+
+def prepare(config_path: str | Path) -> dict[str, int]:
+    config = load_yaml(config_path)
+    context = _preparation_context(config)
+    output_dir = context["output_dir"]
+    seed = context["seed"]
+    train_molecules = context["train_molecules"]
+    validation_molecules = context["validation_molecules"]
+    random_p = context["randomized_probability"]
+    kekule_p = context["kekulized_probability"]
     counts: dict[str, int] = {}
 
     generation_diagnostics: dict[str, dict[str, Any]] = {}
@@ -481,8 +675,32 @@ def _json_safe_diagnostics(value: Any) -> Any:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/data.yaml")
+    parser.add_argument(
+        "--stage", choices=["all", "shard", "finalize"], default="all"
+    )
+    parser.add_argument("--task-index", type=int)
+    parser.add_argument("--shard-size", type=int)
+    parser.add_argument("--print-shard-count", action="store_true")
     args = parser.parse_args()
-    for name, count in prepare(args.config).items():
+    if args.print_shard_count:
+        print(len(_shard_specs(load_yaml(args.config), args.shard_size)))
+        return
+    if args.stage == "shard":
+        if args.task_index is None:
+            parser.error("--task-index is required for --stage shard")
+        print(
+            json.dumps(
+                prepare_shard(args.config, args.task_index, args.shard_size),
+                indent=2,
+            )
+        )
+        return
+    counts = (
+        finalize_shards(args.config, args.shard_size)
+        if args.stage == "finalize"
+        else prepare(args.config)
+    )
+    for name, count in counts.items():
         print(f"{name}: {count:,}")
 
 

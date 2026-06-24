@@ -9,6 +9,7 @@ import jsonlines
 from miqthesis.data.prepare_sft import (
     _interleave_jsonl,
     _select_safe_properties,
+    _shard_specs,
     split_molecules,
 )
 from miqthesis.data.schemas import NormalizedExample
@@ -102,3 +103,16 @@ def test_multitask_interleave_is_streamed_and_balanced(tmp_path):
     assert written == 9
     assert len({row["uid"] for row in rows}) == 9
     assert {row["task_type"] for row in rows} == {"count", "index", "generation"}
+
+
+def test_default_data_plan_expands_to_eighteen_serial_shards():
+    config = {
+        "preparation_shard_size": 10_000,
+        "sizes": {
+            family: {"train": 50_000, "val": 2_000}
+            for family in ("count", "index", "generation")
+        },
+    }
+    specs = _shard_specs(config)
+    assert len(specs) == 18
+    assert sum(spec["size"] for spec in specs) == 156_000
