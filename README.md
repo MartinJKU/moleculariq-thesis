@@ -41,8 +41,8 @@ export MIQ_INSTALL_DEPS=1
 source scripts/00_setup_env.sh
 unset MIQ_INSTALL_DEPS
 
-# Leonardo's current driver supports CUDA 12.2. Install the matched CUDA 12.1
-# PyTorch wheel rather than allowing pip to select a newer CUDA build.
+# Leonardo's current driver supports CUDA 12.2. Install the pinned CUDA 12.1
+# PyTorch/Transformers/TRL stack rather than allowing pip to mix newer builds.
 bash scripts/00_repair_gpu_stack_leonardo.sh
 
 git clone https://github.com/ml-jku/moleculariq-eval.git external/moleculariq-eval

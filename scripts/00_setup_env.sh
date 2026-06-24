@@ -31,6 +31,8 @@ if [[ "${MIQ_INSTALL_DEPS:-0}" == "1" ]]; then
     "torch==2.5.1" "torchvision==0.20.1" \
     --index-url https://download.pytorch.org/whl/cu121
   python -m pip install -e ".[train,chem]"
+  python -m pip uninstall -y humming-kernels
+  python -m pip check
 fi
 
 mkdir -p logs results/raw results/parsed results/tables results/plots results/report_cards
