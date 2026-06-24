@@ -4,7 +4,13 @@ from collections import Counter
 
 import pytest
 
-from miqthesis.data.prepare_sft import _select_safe_properties, split_molecules
+import jsonlines
+
+from miqthesis.data.prepare_sft import (
+    _interleave_jsonl,
+    _select_safe_properties,
+    split_molecules,
+)
 from miqthesis.data.schemas import NormalizedExample
 from miqthesis.data.splits import assert_disjoint_uids, deterministic_split
 
@@ -74,3 +80,25 @@ def test_property_selection_skips_upstream_recursion_errors():
     assert all(name != "longest_carbon_chain_count" for name, _ in selected)
     assert diagnostics["failure_types"]["RecursionError"] == 1
     assert ("CCO", "longest_carbon_chain_count") in failed_pairs
+
+
+def test_multitask_interleave_is_streamed_and_balanced(tmp_path):
+    source_paths = []
+    counts = {}
+    for family in ("count", "index", "generation"):
+        path = tmp_path / f"sft_{family}_train.jsonl"
+        rows = [
+            {"uid": f"{family}-{index}", "task_type": family}
+            for index in range(4)
+        ]
+        with jsonlines.open(path, mode="w") as writer:
+            writer.write_all(rows)
+        source_paths.append(path)
+        counts[path.name] = len(rows)
+    destination = tmp_path / "sft_multitask_train.jsonl"
+    written = _interleave_jsonl(source_paths, destination, 9, seed=42, source_counts=counts)
+    with jsonlines.open(destination) as reader:
+        rows = list(reader)
+    assert written == 9
+    assert len({row["uid"] for row in rows}) == 9
+    assert {row["task_type"] for row in rows} == {"count", "index", "generation"}

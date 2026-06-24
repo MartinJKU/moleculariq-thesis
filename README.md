@@ -55,13 +55,14 @@ Record the exact `moleculariq-eval` commit. The wrapper also writes it to each
 
 ```bash
 bash scripts/01_download_data.sh
-bash scripts/02_prepare_sft.sh
+sbatch slurm/prepare_data.slurm
 ```
 
 This produces `data/processed/leakage_report.json`, filtered molecules, SFT
 JSONL files, and prompt-only GRPO files. The training pool contains SMILES, so
 questions and exact targets are generated with `moleculariq-core` after leakage
-filtering.
+filtering. The corpus build is streamed to disk, but it remains CPU-intensive
+and must run as a SLURM job rather than on a Leonardo login node.
 
 ## Training
 

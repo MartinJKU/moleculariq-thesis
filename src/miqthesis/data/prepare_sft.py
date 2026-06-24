@@ -5,6 +5,7 @@ import hashlib
 import json
 import random
 from collections import Counter
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -131,7 +132,10 @@ def _generated_rows(
     except ImportError as exc:
         raise RuntimeError("Install moleculariq-core before preparing training data") from exc
     rng = random.Random(seed)
-    generator = MolecularIQD(seed=seed)
+    # The property cache grows with every molecule/property pair. That is useful
+    # for interactive reuse, but a large one-pass corpus build can retain hundreds
+    # of thousands of RDKit-derived objects and be killed by a login-node cgroup.
+    generator = MolecularIQD(seed=seed, cache_properties=False)
     count_properties = list(dict.fromkeys(generator.get_available_count_properties()))
     index_properties = list(dict.fromkeys(generator.get_available_index_properties()))
     if not count_properties or not index_properties:
@@ -272,14 +276,73 @@ def _generated_rows(
         produced += 1
 
 
-def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+def _write_jsonl(
+    path: Path,
+    rows: Iterable[dict[str, Any]],
+    *,
+    expected: int | None = None,
+    progress_every: int = 1_000,
+) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with jsonlines.open(path, mode="w") as writer:
         for row in rows:
             writer.write(row)
             count += 1
+            if progress_every and count % progress_every == 0:
+                suffix = f"/{expected:,}" if expected is not None else ""
+                print(f"{path.name}: {count:,}{suffix}", flush=True)
+    print(f"{path.name}: complete ({count:,} rows)", flush=True)
     return count
+
+
+def _interleave_jsonl(
+    source_paths: list[Path],
+    destination: Path,
+    target_size: int,
+    seed: int,
+    source_counts: dict[str, int],
+) -> int:
+    """Write a balanced, bounded-memory interleave of family JSONL files."""
+    available = sum(source_counts[path.name] for path in source_paths)
+    if target_size > available:
+        raise ValueError(
+            f"Requested {target_size:,} rows for {destination.name}, but only "
+            f"{available:,} source rows exist. Refusing to duplicate UIDs."
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    rng = random.Random(seed)
+    written = 0
+    with ExitStack() as stack:
+        readers = {
+            path.name: iter(stack.enter_context(jsonlines.open(path)))
+            for path in source_paths
+        }
+        with jsonlines.open(destination, mode="w") as writer:
+            while written < target_size and readers:
+                names = list(readers)
+                rng.shuffle(names)
+                for name in names:
+                    if written >= target_size:
+                        break
+                    try:
+                        row = next(readers[name])
+                    except StopIteration:
+                        del readers[name]
+                        continue
+                    writer.write(row)
+                    written += 1
+                    if written % 1_000 == 0:
+                        print(
+                            f"{destination.name}: {written:,}/{target_size:,}",
+                            flush=True,
+                        )
+    if written != target_size:
+        raise RuntimeError(
+            f"Only wrote {written:,}/{target_size:,} rows to {destination}"
+        )
+    print(f"{destination.name}: complete ({written:,} rows)", flush=True)
+    return written
 
 
 def split_molecules(
@@ -325,56 +388,62 @@ def prepare(config_path: str | Path) -> dict[str, int]:
     kekule_p = float(representation.get("kekulized_probability", 0.25))
     counts: dict[str, int] = {}
 
-    family_rows: dict[str, dict[str, list[dict[str, Any]]]] = {}
     generation_diagnostics: dict[str, dict[str, Any]] = {}
     for family in ("count", "index", "generation"):
         sizes = config["sizes"][family]
         train_diagnostics: dict[str, Any] = {}
         validation_diagnostics: dict[str, Any] = {}
-        family_rows[family] = {
-            "train": list(
-                _generated_rows(
-                    train_molecules,
-                    family,
-                    int(sizes["train"]),
-                    seed + len(family),
-                    random_p,
-                    kekule_p,
-                    train_diagnostics,
-                )
+        split_specs = {
+            "train": (
+                train_molecules,
+                int(sizes["train"]),
+                seed + len(family),
+                train_diagnostics,
             ),
-            "val": list(
-                _generated_rows(
-                    validation_molecules,
-                    family,
-                    int(sizes["val"]),
-                    seed + 1_000 + len(family),
-                    random_p,
-                    kekule_p,
-                    validation_diagnostics,
-                )
+            "val": (
+                validation_molecules,
+                int(sizes["val"]),
+                seed + 1_000 + len(family),
+                validation_diagnostics,
             ),
         }
+        for split, (split_molecule_pool, split_size, split_seed, diagnostics) in (
+            split_specs.items()
+        ):
+            name = f"sft_{family}_{split}.jsonl"
+            counts[name] = _write_jsonl(
+                output_dir / name,
+                _generated_rows(
+                    split_molecule_pool,
+                    family,
+                    split_size,
+                    split_seed,
+                    random_p,
+                    kekule_p,
+                    diagnostics,
+                ),
+                expected=split_size,
+            )
         generation_diagnostics[family] = {
             "train": train_diagnostics,
             "val": validation_diagnostics,
         }
-        for split in ("train", "val"):
-            name = f"sft_{family}_{split}.jsonl"
-            counts[name] = _write_jsonl(output_dir / name, family_rows[family][split])
 
     multitask_sizes = config["sizes"]["multitask"]
     for split in ("train", "val"):
         target_size = int(multitask_sizes[split])
-        combined = sum((family_rows[family][split] for family in family_rows), [])
-        rng = random.Random(seed + (200 if split == "train" else 201))
-        rng.shuffle(combined)
-        if target_size > len(combined):
-            combined = [combined[index % len(combined)] for index in range(target_size)]
-        else:
-            combined = combined[:target_size]
         name = f"sft_multitask_{split}.jsonl"
-        counts[name] = _write_jsonl(output_dir / name, combined)
+        source_paths = [
+            output_dir / f"sft_{family}_{split}.jsonl"
+            for family in ("count", "index", "generation")
+        ]
+        counts[name] = _interleave_jsonl(
+            source_paths,
+            output_dir / name,
+            target_size,
+            seed + (200 if split == "train" else 201),
+            counts,
+        )
 
     (output_dir / "sft_manifest.json").write_text(
         json.dumps(

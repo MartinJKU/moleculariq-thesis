@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 from pathlib import Path
 from typing import Any
 
@@ -20,31 +19,49 @@ def _to_grpo(row: dict[str, Any]) -> dict[str, Any]:
     return output
 
 
-def _load(path: Path) -> list[dict[str, Any]]:
-    with jsonlines.open(path) as reader:
-        return [dict(row) for row in reader]
+def _count_rows(path: Path) -> int:
+    with path.open("r", encoding="utf-8") as handle:
+        return sum(1 for line in handle if line.strip())
 
 
-def _write(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_systematic_sample(path: Path, source: Path, target_size: int) -> int:
+    """Select exactly target_size evenly spaced rows without loading the file."""
+    source_size = _count_rows(source)
+    if target_size > source_size:
+        raise ValueError(
+            f"Requested {target_size:,} GRPO rows from only {source_size:,} SFT rows"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
-    with jsonlines.open(path, mode="w") as writer:
-        writer.write_all(rows)
+    written = 0
+    with jsonlines.open(source) as reader, jsonlines.open(path, mode="w") as writer:
+        for index, row in enumerate(reader):
+            previous = index * target_size // source_size
+            current = (index + 1) * target_size // source_size
+            if current > previous:
+                writer.write(_to_grpo(dict(row)))
+                written += 1
+                if written % 1_000 == 0:
+                    print(
+                        f"{path.name}: {written:,}/{target_size:,}",
+                        flush=True,
+                    )
+    if written != target_size:
+        raise RuntimeError(f"Only wrote {written:,}/{target_size:,} rows to {path}")
+    print(f"{path.name}: complete ({written:,} rows)", flush=True)
+    return written
 
 
 def prepare(config_path: str | Path) -> dict[str, int]:
     config = load_yaml(config_path)
     output_dir = Path(config["output_dir"])
-    seed = int(config.get("seed", 42))
     requested = config["sizes"]["grpo"]
     counts: dict[str, int] = {}
     for split in ("train", "val"):
         source = output_dir / f"sft_multitask_{split}.jsonl"
-        rows = [_to_grpo(row) for row in _load(source)]
-        random.Random(seed + (300 if split == "train" else 301)).shuffle(rows)
-        rows = rows[: int(requested[split])]
         destination = output_dir / f"grpo_multitask_{split}.jsonl"
-        _write(destination, rows)
-        counts[destination.name] = len(rows)
+        counts[destination.name] = _write_systematic_sample(
+            destination, source, int(requested[split])
+        )
     (output_dir / "grpo_manifest.json").write_text(
         json.dumps({"config": config, "counts": counts}, indent=2) + "\n",
         encoding="utf-8",
@@ -62,4 +79,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
