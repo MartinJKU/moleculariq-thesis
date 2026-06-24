@@ -62,7 +62,9 @@ This produces `data/processed/leakage_report.json`, filtered molecules, SFT
 JSONL files, and prompt-only GRPO files. The training pool contains SMILES, so
 questions and exact targets are generated with `moleculariq-core` after leakage
 filtering. The corpus build is streamed to disk, but it remains CPU-intensive
-and must run as a SLURM job rather than on a Leonardo login node.
+and must run as a SLURM job rather than on a Leonardo login node. The provided
+job uses the `dcgp_usr_prod` CPU partition because `lrd_all_serial` is limited
+to four physical cores, roughly 30 GB RAM, and four hours.
 
 ## Training
 
