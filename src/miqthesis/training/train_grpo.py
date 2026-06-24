@@ -21,6 +21,7 @@ from miqthesis.training.rewards import (
 from miqthesis.training.utils import (
     assert_full_parameter_config,
     load_yaml,
+    require_local_model,
     set_seed,
     write_json,
 )
@@ -108,12 +109,17 @@ def train(
     if run_id:
         config["run_id"] = run_id
     assert_full_parameter_config(config)
+    config["model_name_or_path"] = str(
+        require_local_model(config["model_name_or_path"])
+    )
     set_seed(int(config.get("seed", 42)))
     from datasets import load_dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from trl import GRPOConfig, GRPOTrainer
 
-    tokenizer = AutoTokenizer.from_pretrained(config["model_name_or_path"], use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["model_name_or_path"], use_fast=True, local_files_only=True
+    )
     tokenizer.chat_template = QWEN_CHAT_TEMPLATE
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
@@ -124,7 +130,7 @@ def train(
 
         model_kwargs["torch_dtype"] = torch.bfloat16
     model = AutoModelForCausalLM.from_pretrained(
-        config["model_name_or_path"], **model_kwargs
+        config["model_name_or_path"], local_files_only=True, **model_kwargs
     )
     model.config.use_cache = False
     if config.get("gradient_checkpointing"):

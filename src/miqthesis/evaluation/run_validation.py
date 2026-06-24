@@ -10,7 +10,7 @@ import pandas as pd
 
 from miqthesis.constants import QWEN_CHAT_TEMPLATE
 from miqthesis.evaluation.verify_outputs import verify_prediction
-from miqthesis.training.utils import load_yaml
+from miqthesis.training.utils import load_yaml, require_local_model
 
 
 def _batches(rows: list[dict[str, Any]], batch_size: int) -> Iterable[list[dict[str, Any]]]:
@@ -69,7 +69,10 @@ def evaluate_model(
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=True)
+    model_path = str(require_local_model(model_path))
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_path, use_fast=True, local_files_only=True
+    )
     tokenizer.chat_template = QWEN_CHAT_TEMPLATE
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
@@ -79,6 +82,7 @@ def evaluate_model(
         model_path,
         torch_dtype=dtype,
         device_map="auto",
+        local_files_only=True,
     )
     model.eval()
     generation = config["generation"]

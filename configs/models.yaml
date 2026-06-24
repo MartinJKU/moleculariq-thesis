@@ -1,11 +1,11 @@
 models:
   base_qwen05:
-    model_path: Qwen/Qwen2.5-0.5B
+    model_path: models/Qwen2.5-0.5B
     eval_task: moleculariq_inline
     chat_template: false
     type: baseline
   instruct_qwen05:
-    model_path: Qwen/Qwen2.5-0.5B-Instruct
+    model_path: models/Qwen2.5-0.5B-Instruct
     eval_task: moleculariq_pass_at_k
     chat_template: true
     type: baseline

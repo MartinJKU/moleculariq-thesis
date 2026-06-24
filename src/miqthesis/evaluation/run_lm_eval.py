@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from miqthesis.training.utils import load_yaml
+from miqthesis.training.utils import load_yaml, require_local_model
 
 
 def _provenance(eval_repo: str | None) -> dict[str, Any]:
@@ -155,6 +155,7 @@ def run(
             if protocol == "B"
             else model_config["model_path"]
         )
+        model_path = str(require_local_model(model_path))
         command = build_command(model_path, model_config, model_eval_config, output_dir)
         manifest = {
             "model_id": model_id,

@@ -71,3 +71,12 @@ def assert_full_parameter_config(config: dict[str, Any]) -> None:
     if present:
         raise ValueError(f"Full-parameter run contains forbidden options: {present}")
 
+
+def require_local_model(path: str | Path) -> Path:
+    path = Path(path)
+    if not path.is_dir() or not (path / "config.json").exists():
+        raise FileNotFoundError(
+            f"Local model snapshot not found at {path}. "
+            "On a Leonardo login node run: bash scripts/01_download_models.sh"
+        )
+    return path

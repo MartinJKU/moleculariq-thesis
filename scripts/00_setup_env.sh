@@ -12,6 +12,13 @@ export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME}"
 export WANDB_PROJECT="${WANDB_PROJECT:-moleculariq-thesis}"
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
+if [[ -n "${SLURM_JOB_ID:-}" && "${MIQ_ALLOW_COMPUTE_NETWORK:-0}" != "1" ]]; then
+  export HF_HUB_OFFLINE=1
+  export TRANSFORMERS_OFFLINE=1
+  export DATASETS_OFFLINE=1
+  export WANDB_MODE="${WANDB_MODE:-offline}"
+fi
+
 VENV_DIR="${MIQ_VENV_DIR:-${WORK:-$PWD}/venvs/moleculariq-thesis}"
 if [[ ! -d "$VENV_DIR" ]]; then
   python -m venv "$VENV_DIR"
@@ -24,4 +31,3 @@ if [[ "${MIQ_INSTALL_DEPS:-0}" == "1" ]]; then
 fi
 
 mkdir -p logs results/raw results/parsed results/tables results/plots results/report_cards
-

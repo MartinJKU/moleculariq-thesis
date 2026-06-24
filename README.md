@@ -51,6 +51,26 @@ python -m pytest
 Record the exact `moleculariq-eval` commit. The wrapper also writes it to each
 `run_manifest.json`.
 
+## Model staging
+
+Leonardo compute nodes may not have outbound internet access. Download the
+required public model snapshots once from a login node:
+
+```bash
+bash scripts/01_download_models.sh
+```
+
+This creates:
+
+```text
+models/Qwen2.5-0.5B/
+models/Qwen2.5-0.5B-Instruct/
+```
+
+All SLURM jobs force Hugging Face, Transformers, Datasets, and W&B into offline
+mode. A missing snapshot therefore fails immediately with the staging command
+instead of repeatedly attempting network requests.
+
 ## Data preparation
 
 ```bash
@@ -73,6 +93,7 @@ per-user submitted-job limit. Each shard stays within its four-core, roughly
 The SLURM jobs are configured for account `EUHPC_D27_069`. Submit:
 
 ```bash
+test -f models/Qwen2.5-0.5B/config.json
 sbatch slurm/sft_multitask_debug.slurm
 sbatch slurm/sft_count.slurm
 sbatch slurm/sft_index.slurm

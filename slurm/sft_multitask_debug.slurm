@@ -14,4 +14,5 @@
 set -euo pipefail
 cd "$WORK/moleculariq-thesis"
 source scripts/00_setup_env.sh
-python -m miqthesis.training.train_sft --config configs/sft/qwen05_multitask.yaml
+python -m miqthesis.training.train_sft \
+  --config configs/sft/qwen05_multitask_debug.yaml

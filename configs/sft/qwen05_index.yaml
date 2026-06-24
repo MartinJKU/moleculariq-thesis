@@ -1,5 +1,5 @@
 run_id: sft_index
-model_name_or_path: Qwen/Qwen2.5-0.5B
+model_name_or_path: models/Qwen2.5-0.5B
 train_file: data/processed/sft_index_train.jsonl
 validation_file: data/processed/sft_index_val.jsonl
 output_dir: checkpoints/sft_index
@@ -22,4 +22,3 @@ save_safetensors: true
 seed: 42
 report_to: wandb
 full_parameter_finetuning: true
-

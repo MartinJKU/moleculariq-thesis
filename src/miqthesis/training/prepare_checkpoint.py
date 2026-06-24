@@ -61,9 +61,12 @@ def prepare_checkpoint(
     if validate_load:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        AutoTokenizer.from_pretrained(destination)
+        AutoTokenizer.from_pretrained(destination, local_files_only=True)
         AutoModelForCausalLM.from_pretrained(
-            destination, device_map="cpu", low_cpu_mem_usage=True
+            destination,
+            device_map="cpu",
+            low_cpu_mem_usage=True,
+            local_files_only=True,
         )
 
 

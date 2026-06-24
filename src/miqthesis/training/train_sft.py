@@ -10,6 +10,7 @@ from miqthesis.training.callbacks import ResourceLoggingCallback
 from miqthesis.training.utils import (
     assert_full_parameter_config,
     load_yaml,
+    require_local_model,
     set_seed,
     write_json,
 )
@@ -54,6 +55,9 @@ def train(
     if run_id:
         config["run_id"] = run_id
     assert_full_parameter_config(config)
+    config["model_name_or_path"] = str(
+        require_local_model(config["model_name_or_path"])
+    )
     set_seed(int(config.get("seed", 42)))
     from datasets import load_dataset
     from transformers import (
@@ -63,7 +67,9 @@ def train(
         TrainingArguments,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(config["model_name_or_path"], use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["model_name_or_path"], use_fast=True, local_files_only=True
+    )
     tokenizer.chat_template = QWEN_CHAT_TEMPLATE
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -74,7 +80,9 @@ def train(
         model_kwargs["torch_dtype"] = torch.bfloat16
     if config.get("flash_attention_2"):
         model_kwargs["attn_implementation"] = "flash_attention_2"
-    model = AutoModelForCausalLM.from_pretrained(config["model_name_or_path"], **model_kwargs)
+    model = AutoModelForCausalLM.from_pretrained(
+        config["model_name_or_path"], local_files_only=True, **model_kwargs
+    )
     model.config.use_cache = False
     if config.get("gradient_checkpointing"):
         model.gradient_checkpointing_enable()
@@ -112,6 +120,7 @@ def train(
         gradient_accumulation_steps=int(config["gradient_accumulation_steps"]),
         learning_rate=float(config["learning_rate"]),
         num_train_epochs=float(config["num_train_epochs"]),
+        max_steps=int(config.get("max_steps", -1)),
         warmup_ratio=float(config["warmup_ratio"]),
         lr_scheduler_type=config["lr_scheduler_type"],
         weight_decay=float(config["weight_decay"]),
