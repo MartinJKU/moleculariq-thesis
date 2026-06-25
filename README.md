@@ -154,6 +154,15 @@ After choosing the best model from Protocol A validation results, Protocol B:
 bash scripts/06_eval_model.sh B grpo_verifier
 ```
 
+On Leonardo these GPU evaluations run as SLURM jobs (the bash commands above are
+the equivalent interactive form for a GPU allocation):
+
+```bash
+sbatch slurm/eval_all.slurm            # Protocol A, all variants, + collect
+sbatch slurm/eval_deterministic.slurm  # Protocol D, deterministic, + collect
+sbatch --export=ALL,MIQ_LEADERBOARD_MODEL=grpo_verifier slurm/eval_leaderboard.slurm  # Protocol B
+```
+
 Protocol A and B outputs are stored under separate directories and must never
 be pooled in a cross-model statistical comparison. Protocol B resolves
 `leaderboard_model_path` from `configs/models.yaml`, so it uses the original
