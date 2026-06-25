@@ -1,0 +1,13 @@
+# Coherent dependency pins for the evaluation environment (vLLM + lm-eval).
+#
+# vLLM 0.6.4.post1 is the last vLLM release built for torch 2.5.1, the torch
+# wheel that loads on Leonardo's CUDA 12.2 driver. It was written against
+# Transformers ~4.46 and fails to import much newer releases, so the lm-eval
+# harness must not pull one. Holding the whole stack inside vLLM's compatible
+# window at install time is what removes the need for any post-install repair.
+torch==2.5.1
+torchvision==0.20.1
+xformers==0.0.28.post3
+vllm==0.6.4.post1
+numpy<2.0.0
+transformers>=4.45.2,<4.48

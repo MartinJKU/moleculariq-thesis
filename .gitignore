@@ -10,6 +10,8 @@ htmlcov/
 .ruff_cache/
 .ipynb_checkpoints/
 .env
+venvs/
+external/
 wandb/
 logs/
 data/raw/

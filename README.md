@@ -33,26 +33,42 @@ The scientific comparison is intentionally strict:
 Use Python 3.10 or 3.11. On Leonardo, keep data, caches, environments, and
 checkpoints under `$WORK` or `$SCRATCH`, not `$HOME`.
 
+Training and evaluation live in **two separate virtual environments**. They
+cannot share one: TRL 0.23 needs Transformers >= 4.56, while vLLM 0.6.4 — the
+last vLLM built for the torch 2.5.1 wheel that loads on Leonardo's CUDA 12.2
+driver — only loads Transformers ~4.46. Each environment is internally
+consistent, so there is no post-install fix-up step.
+
+Build both once on a login node:
+
 ```bash
 git clone <this-repository> "$WORK/moleculariq-thesis"
 cd "$WORK/moleculariq-thesis"
 
 export MIQ_INSTALL_DEPS=1
+
+# Training / validation / analysis: torch 2.5.1 (CUDA 12.1 wheel) + Transformers
+# 4.56 + TRL 0.23. This is the default environment for every job except lm-eval.
 source scripts/00_setup_env.sh
-unset MIQ_INSTALL_DEPS
+python -m pip freeze > requirements-lock.train.txt
 
-# Leonardo's current driver supports CUDA 12.2. Install the pinned CUDA 12.1
-# PyTorch/Transformers/TRL stack rather than allowing pip to mix newer builds.
-bash scripts/00_repair_gpu_stack_leonardo.sh
-
+# Evaluation: torch 2.5.1 + vLLM 0.6.4 + the lm-eval harness. Clone the harness
+# first; constraints-eval.txt pins Transformers inside vLLM's compatible window.
 git clone https://github.com/ml-jku/moleculariq-eval.git external/moleculariq-eval
 git -C external/moleculariq-eval checkout 425ecaaa8faf65aa43aa60ec0f584b7b7f060063
-python -m pip install "vllm==0.6.4.post1"
-python -m pip install -e "external/moleculariq-eval[vllm]"
-bash scripts/00_repair_gpu_stack_leonardo.sh
-python -m pip freeze > requirements-lock.txt
+MIQ_ENV=eval source scripts/00_setup_env.sh
+python -m pip freeze > requirements-lock.eval.txt
+
+unset MIQ_INSTALL_DEPS
+
+# Acceptance tests run in the training environment.
+source scripts/00_setup_env.sh
 python -m pytest
 ```
+
+The torch CUDA 12.1 wheels load on Leonardo's CUDA 12.2 driver through CUDA
+minor-version compatibility. SLURM jobs select the right environment
+automatically — only `scripts/06_eval_model.sh` uses the evaluation environment.
 
 Record the exact `moleculariq-eval` commit. The wrapper also writes it to each
 `run_manifest.json`.

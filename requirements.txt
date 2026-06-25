@@ -1,6 +1,8 @@
-# Install the project with `pip install -e ".[train,chem,dev]"`.
+# Training environment only. Install with `pip install -e ".[train,chem,dev]"`.
 # These lower bounds are intentionally conservative until the first Leonardo
 # environment is built and frozen with `pip freeze`.
+# The evaluation environment (vLLM + lm-eval) is built separately; its pins live
+# in constraints-eval.txt. See the README "Environment" section.
 accelerate==1.10.1
 datasets==4.7.0
 huggingface-hub>=0.27
