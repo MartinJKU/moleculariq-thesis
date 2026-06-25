@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+# lm-eval runs on the vLLM stack, which lives in its own environment.
+export MIQ_ENV=eval
 source scripts/00_setup_env.sh
 PROTOCOL="${1:-A}"
 MODEL_ID="${2:-}"

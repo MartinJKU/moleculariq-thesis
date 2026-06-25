@@ -69,8 +69,9 @@ def require_cuda(context: str = "Training") -> None:
     raise RuntimeError(
         f"{context} requires a working CUDA GPU, but PyTorch cannot initialize CUDA "
         f"(torch={torch_version}, torch CUDA build={cuda_version or 'CPU-only'}). "
-        "On Leonardo, run `bash scripts/00_repair_gpu_stack_leonardo.sh` from a "
-        "login node, then resubmit the SLURM job."
+        "Run GPU jobs on a Leonardo boost_usr_prod node. If the torch CUDA build "
+        "shows CPU-only, rebuild the environment with "
+        "`MIQ_INSTALL_DEPS=1 source scripts/00_setup_env.sh`."
     )
 
 
