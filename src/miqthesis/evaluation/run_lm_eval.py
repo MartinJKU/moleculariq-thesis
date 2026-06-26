@@ -54,13 +54,22 @@ def build_command(
             f",max_num_batched_tokens={eval_config.get('max_num_batched_tokens', 32768)}"
             f",max_num_seqs={eval_config.get('max_num_seqs', 256)}"
         ),
+    ]
+    # A repeat-controlled task must be referenced by NAME via --include_path, not
+    # by file path. The harness loads a .yaml passed straight to --tasks with
+    # resolve_func=False, so its !function fields (process_docs, ...) stay plain
+    # strings and crash with "'str' object is not callable". Tasks discovered
+    # through --include_path are instead built from their yaml_path with
+    # resolve_func=True, which resolves those references to callables.
+    override_name = eval_config.get("task_override_name")
+    if override_name:
+        command += ["--include_path", str(eval_config["task_override_include_path"])]
+        task_value = override_name
+    else:
+        task_value = str(model_config.get("eval_task", eval_config["task"]))
+    command += [
         "--tasks",
-        str(
-            eval_config.get(
-                "task_override_path",
-                model_config.get("eval_task", eval_config["task"]),
-            )
-        ),
+        task_value,
         "--batch_size",
         str(eval_config.get("batch_size", 1)),
         "--log_samples",
@@ -95,59 +104,41 @@ def build_command(
     return command
 
 
+def controlled_task_name(base_task: str, repeats: int) -> str:
+    """Name of the repeat-controlled task variant inherited from ``base_task``."""
+    return f"{base_task}_controlled_repeats_{repeats}"
+
+
 def write_task_override(
     eval_repo: str | Path,
     base_task: str,
     repeats: int,
     output_dir: str | Path,
 ) -> Path:
-    import yaml as _yaml
-
     task_file = Path(eval_repo) / "lm_eval" / "tasks" / "moleculariq" / f"{base_task}.yaml"
     if not task_file.exists():
         raise FileNotFoundError(f"Cannot build repeat override; missing {task_file}")
 
-    # The base task YAML tags callable fields with !function (e.g.
-    # "process_docs: !function task_processor.process_docs") but leaves others as
-    # plain strings (e.g. "doc_to_target: target"). Read it with a loader that
-    # remembers which values carried the !function tag so the two can be told
-    # apart when re-emitting them below.
-    class _FunctionRef(str):
-        """A base-config value that was written with the !function YAML tag."""
-
-    class _BaseLoader(_yaml.SafeLoader):
-        pass
-
-    _BaseLoader.add_constructor(
-        "!function",
-        lambda loader, node: _FunctionRef(loader.construct_scalar(node)),
-    )
-    base_cfg = _yaml.load(task_file.read_text(encoding="utf-8"), Loader=_BaseLoader) or {}
-
-    lines = [
-        f'include: "{task_file.resolve().as_posix()}"',
-        f"task: {base_task}_controlled_repeats_{repeats}",
-        f"repeats: {repeats}",
-    ]
-    # Re-emit the !function fields in the override so resolution happens in the
-    # override's own loading context rather than relying on the include to carry
-    # callables through. The !function tag is essential: without it lm_eval keeps
-    # the value as a plain string and calling it raises "'str' object is not
-    # callable". lm_eval resolves a !function reference relative to the YAML
-    # file's directory, so qualify it with the base task's absolute directory
-    # because the override lives elsewhere (under results/). Plain-string fields
-    # such as doc_to_target are inherited verbatim via the include and must not
-    # be re-tagged or path-prefixed.
-    task_dir = task_file.resolve().parent.as_posix()
-    for field in ("process_docs", "doc_to_text", "doc_to_target", "process_results"):
-        value = base_cfg.get(field)
-        if isinstance(value, _FunctionRef):
-            ref = value if value.startswith("/") else f"{task_dir}/{value}"
-            lines.append(f"{field}: !function {ref}")
-    lines += ["metadata:", "  version: controlled-1", ""]
-
+    # Inherit the official task wholesale via include and override only repeats.
+    # The override is referenced by task name through --include_path (see
+    # build_command), so the harness builds it from this file with
+    # resolve_func=True; the include then resolves the base task's !function
+    # fields to callables and carries every other field (doc_to_target, metrics,
+    # ...) through unchanged. Nothing else needs to be re-specified here.
     override = Path(output_dir) / f"{base_task}_repeats_{repeats}.yaml"
-    override.write_text("\n".join(lines), encoding="utf-8")
+    override.write_text(
+        "\n".join(
+            [
+                f'include: "{task_file.resolve().as_posix()}"',
+                f"task: {controlled_task_name(base_task, repeats)}",
+                f"repeats: {repeats}",
+                "metadata:",
+                "  version: controlled-1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     return override
 
 
@@ -178,13 +169,13 @@ def run(
                 raise ValueError(
                     "Protocol A repeat control requires --eval_repo for a task override"
                 )
-            model_eval_config["task_override_path"] = str(
-                write_task_override(
-                    eval_repo,
-                    model_config.get("eval_task", model_eval_config["task"]),
-                    int(repeats),
-                    output_dir,
-                )
+            base_task = model_config.get("eval_task", model_eval_config["task"])
+            override_dir = output_dir / "task_override"
+            override_dir.mkdir(parents=True, exist_ok=True)
+            write_task_override(eval_repo, base_task, int(repeats), override_dir)
+            model_eval_config["task_override_include_path"] = str(override_dir)
+            model_eval_config["task_override_name"] = controlled_task_name(
+                base_task, int(repeats)
             )
         protocol = str(model_eval_config["protocol"]).upper()
         model_path = (
