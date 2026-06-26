@@ -107,6 +107,11 @@ def write_task_override(
     if not task_file.exists():
         raise FileNotFoundError(f"Cannot build repeat override; missing {task_file}")
 
+    # The base task YAML uses !function tags; register a no-op constructor so
+    # safe_load treats them as plain strings instead of raising ConstructorError.
+    _yaml.SafeLoader.add_constructor(
+        "!function", lambda loader, node: loader.construct_scalar(node)
+    )
     base_cfg = _yaml.safe_load(task_file.read_text(encoding="utf-8")) or {}
 
     lines = [
