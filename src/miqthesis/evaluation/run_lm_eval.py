@@ -122,9 +122,16 @@ def write_task_override(
     # Re-specify callable fields so lm_eval resolves them in the override's
     # own context; the include mechanism does not always re-run resolution on
     # inherited string function references.
+    # lm_eval resolves "module.fn" relative to the YAML file's directory, so
+    # prefix with the base task directory to produce an absolute reference that
+    # works regardless of where the override file lives.
+    task_dir = task_file.resolve().parent.as_posix()
     for field in ("process_docs", "doc_to_text", "doc_to_target", "process_results"):
         if field in base_cfg:
-            lines.append(f"{field}: {base_cfg[field]}")
+            value = base_cfg[field]
+            if value and not value.startswith("/"):
+                value = f"{task_dir}/{value}"
+            lines.append(f"{field}: {value}")
     lines += ["metadata:", "  version: controlled-1", ""]
 
     override = Path(output_dir) / f"{base_task}_repeats_{repeats}.yaml"
