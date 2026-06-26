@@ -70,15 +70,27 @@ def evaluate_model(
     model_path: str,
     rows: list[dict[str, Any]],
     config: dict[str, Any],
+    eos_token_ids: list[int] | None = None,
+    tokenizer_path: str | None = None,
 ) -> pd.DataFrame:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     require_cuda("Validation")
     model_path = str(require_local_model(model_path))
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_path, use_fast=True, local_files_only=True
-    )
+    # Raw training checkpoints (checkpoint-XXXX) sometimes ship without tokenizer
+    # files; fall back to an explicit tokenizer source (e.g. the SFT init) so a
+    # checkpoint sweep does not require re-staging each intermediate step.
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path, use_fast=True, local_files_only=True
+        )
+    except OSError:
+        if tokenizer_path is None:
+            raise
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_path, use_fast=True, local_files_only=True
+        )
     tokenizer.chat_template = QWEN_CHAT_TEMPLATE
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
@@ -105,17 +117,22 @@ def evaluate_model(
         ]
         encoded = tokenizer(prompts, return_tensors="pt", padding=True)
         encoded = {key: value.to(model.device) for key, value in encoded.items()}
+        generate_kwargs: dict[str, Any] = dict(
+            do_sample=float(generation["temperature"]) > 0,
+            temperature=float(generation["temperature"]),
+            top_p=float(generation["top_p"]),
+            top_k=int(generation["top_k"]),
+            max_new_tokens=int(generation["max_new_tokens"]),
+            num_return_sequences=repeats,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+        # A raw checkpoint inherits the base generation_config whose only EOS is
+        # <|endoftext|>; without <|im_end|> the assistant turn never stops under
+        # greedy/sampling decoding. Force both so intermediate checkpoints halt.
+        if eos_token_ids is not None:
+            generate_kwargs["eos_token_id"] = eos_token_ids
         with torch.no_grad():
-            outputs = model.generate(
-                **encoded,
-                do_sample=float(generation["temperature"]) > 0,
-                temperature=float(generation["temperature"]),
-                top_p=float(generation["top_p"]),
-                top_k=int(generation["top_k"]),
-                max_new_tokens=int(generation["max_new_tokens"]),
-                num_return_sequences=repeats,
-                pad_token_id=tokenizer.pad_token_id,
-            )
+            outputs = model.generate(**encoded, **generate_kwargs)
         prompt_width = encoded["input_ids"].shape[1]
         completions = tokenizer.batch_decode(
             outputs[:, prompt_width:], skip_special_tokens=True
