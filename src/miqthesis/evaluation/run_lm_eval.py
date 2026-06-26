@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from miqthesis.constants import IM_END_TOKEN_ID
 from miqthesis.training.utils import load_yaml, require_cuda, require_local_model
 
 
@@ -104,6 +105,41 @@ def build_command(
     return command
 
 
+def assert_eval_stop_tokens(
+    model_id: str, model_config: dict[str, Any], model_path: str
+) -> None:
+    """Fail before launch if a chat-template checkpoint cannot stop the assistant turn.
+
+    vLLM stops generation on the checkpoint's ``generation_config`` ``eos_token_id``.
+    A raw training checkpoint inherits the base model's eos (``<|endoftext|>`` only),
+    so the model never stops at ``<|im_end|>``, over-generates a whole fake
+    conversation up to ``max_gen_toks``, and answer extraction collapses.
+    ``prepare_checkpoint`` writes the controlled generation config that lists
+    ``<|im_end|>``; this guard ensures only such checkpoints reach Protocol A/B and
+    turns a silent score collapse into an actionable error.
+    """
+    if not model_config.get("chat_template"):
+        return
+    generation_path = Path(model_path) / "generation_config.json"
+    if not generation_path.exists():
+        raise ValueError(
+            f"{model_id}: chat-template evaluation requires a generation_config.json "
+            f"at {model_path}. Stage the checkpoint with "
+            "`python -m miqthesis.training.prepare_checkpoint`."
+        )
+    eos = json.loads(generation_path.read_text(encoding="utf-8")).get("eos_token_id")
+    eos_ids = eos if isinstance(eos, list) else [eos]
+    if IM_END_TOKEN_ID not in eos_ids:
+        raise ValueError(
+            f"{model_id}: checkpoint at {model_path} has eos_token_id={eos!r}, which "
+            f"is missing <|im_end|> ({IM_END_TOKEN_ID}). Under vLLM the model will not "
+            "stop at the end of the assistant turn and will over-generate, breaking "
+            "answer extraction. Evaluate a checkpoint staged by "
+            "`python -m miqthesis.training.prepare_checkpoint` (which writes the "
+            "controlled generation config), not a raw training checkpoint."
+        )
+
+
 def controlled_task_name(base_task: str, repeats: int) -> str:
     """Name of the repeat-controlled task variant inherited from ``base_task``."""
     return f"{base_task}_controlled_repeats_{repeats}"
@@ -184,6 +220,7 @@ def run(
             else model_config["model_path"]
         )
         model_path = str(require_local_model(model_path))
+        assert_eval_stop_tokens(model_id, model_config, model_path)
         command = build_command(model_path, model_config, model_eval_config, output_dir)
         manifest = {
             "model_id": model_id,

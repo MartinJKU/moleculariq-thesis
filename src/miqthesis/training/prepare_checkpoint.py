@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from miqthesis.constants import CONTROLLED_GENERATION_CONFIG
+from miqthesis.constants import CONTROLLED_GENERATION_CONFIG, IM_END_TOKEN_ID
 
 
 def _full_weights_present(path: Path) -> bool:
@@ -34,6 +34,19 @@ def _canonical_bytes(payload: dict[str, Any]) -> bytes:
     )
 
 
+def _assert_stop_tokens(generation_config: dict[str, Any]) -> None:
+    """Reject a generation config that cannot stop the assistant turn under vLLM."""
+    eos = generation_config.get("eos_token_id")
+    eos_ids = eos if isinstance(eos, list) else [eos]
+    if IM_END_TOKEN_ID not in eos_ids:
+        raise ValueError(
+            f"generation_config eos_token_id={eos!r} does not include the chat "
+            f"turn-end token <|im_end|> ({IM_END_TOKEN_ID}). A vLLM evaluation would "
+            "not stop at the end of the assistant turn and would over-generate, "
+            "breaking answer extraction."
+        )
+
+
 def prepare_checkpoint(
     source: str | Path,
     destination: str | Path,
@@ -41,6 +54,8 @@ def prepare_checkpoint(
     validate_load: bool = True,
 ) -> None:
     source, destination = Path(source), Path(destination)
+    gen_config = generation_config or CONTROLLED_GENERATION_CONFIG
+    _assert_stop_tokens(gen_config)
     adapter_files = [
         source / "adapter_config.json",
         source / "adapter_model.safetensors",
@@ -55,9 +70,7 @@ def prepare_checkpoint(
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(source, destination)
-    (destination / "generation_config.json").write_bytes(
-        _canonical_bytes(generation_config or CONTROLLED_GENERATION_CONFIG)
-    )
+    (destination / "generation_config.json").write_bytes(_canonical_bytes(gen_config))
     if validate_load:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -81,6 +94,7 @@ def validate_consistency(eval_root: str | Path) -> dict[str, str]:
         generation = path / "generation_config.json"
         if not generation.exists():
             raise ValueError(f"Missing generation config: {generation}")
+        _assert_stop_tokens(json.loads(generation.read_text(encoding="utf-8")))
         generation_hashes[path.name] = hashlib.sha256(generation.read_bytes()).hexdigest()
         tokenizer_config = path / "tokenizer_config.json"
         payload = json.loads(tokenizer_config.read_text(encoding="utf-8"))
@@ -99,6 +113,15 @@ def main() -> None:
     parser.add_argument("--eval_root", default="checkpoints/eval")
     parser.add_argument("--validate_only", action="store_true")
     parser.add_argument("--skip_load_validation", action="store_true")
+    parser.add_argument(
+        "--skip_consistency",
+        action="store_true",
+        help=(
+            "Stage a single checkpoint (e.g. a mid-training step) without requiring "
+            "every checkpoint under --eval_root to share one generation config and "
+            "chat template. The eos-token guard still runs."
+        ),
+    )
     args = parser.parse_args()
     if not args.validate_only:
         if not args.source or not args.destination:
@@ -108,6 +131,8 @@ def main() -> None:
             args.destination,
             validate_load=not args.skip_load_validation,
         )
+        if args.skip_consistency:
+            return
     validate_consistency(args.eval_root)
 
 
