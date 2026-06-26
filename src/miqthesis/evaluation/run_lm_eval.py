@@ -57,7 +57,7 @@ def build_command(
             )
         ),
         "--batch_size",
-        str(eval_config.get("batch_size", "auto")),
+        str(eval_config.get("batch_size", 1)),
         "--log_samples",
         "--output_path",
         str(output_dir),
