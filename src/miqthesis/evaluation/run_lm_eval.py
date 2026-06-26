@@ -101,23 +101,29 @@ def write_task_override(
     repeats: int,
     output_dir: str | Path,
 ) -> Path:
+    import yaml as _yaml
+
     task_file = Path(eval_repo) / "lm_eval" / "tasks" / "moleculariq" / f"{base_task}.yaml"
     if not task_file.exists():
         raise FileNotFoundError(f"Cannot build repeat override; missing {task_file}")
+
+    base_cfg = _yaml.safe_load(task_file.read_text(encoding="utf-8")) or {}
+
+    lines = [
+        f'include: "{task_file.resolve().as_posix()}"',
+        f"task: {base_task}_controlled_repeats_{repeats}",
+        f"repeats: {repeats}",
+    ]
+    # Re-specify callable fields so lm_eval resolves them in the override's
+    # own context; the include mechanism does not always re-run resolution on
+    # inherited string function references.
+    for field in ("process_docs", "doc_to_text", "doc_to_target", "process_results"):
+        if field in base_cfg:
+            lines.append(f"{field}: {base_cfg[field]}")
+    lines += ["metadata:", "  version: controlled-1", ""]
+
     override = Path(output_dir) / f"{base_task}_repeats_{repeats}.yaml"
-    override.write_text(
-        "\n".join(
-            [
-                f'include: "{task_file.resolve().as_posix()}"',
-                f"task: {base_task}_controlled_repeats_{repeats}",
-                f"repeats: {repeats}",
-                "metadata:",
-                "  version: controlled-1",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    override.write_text("\n".join(lines), encoding="utf-8")
     return override
 
 
