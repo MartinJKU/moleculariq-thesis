@@ -1,12 +1,37 @@
+import json
+
 import pandas as pd
 import pytest
 
 from miqthesis.analysis.model_selection import decide_escalation
 from miqthesis.evaluation.run_lm_eval import (
+    assert_eval_stop_tokens,
     build_command,
     controlled_task_name,
     write_task_override,
 )
+
+
+def _write_generation_config(directory, eos):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "generation_config.json").write_text(
+        json.dumps({"eos_token_id": eos}), encoding="utf-8"
+    )
+    return directory
+
+
+def test_eval_rejects_chat_checkpoint_without_im_end_eos(tmp_path):
+    checkpoint = _write_generation_config(tmp_path / "raw", [151643])
+    with pytest.raises(ValueError, match="151645"):
+        assert_eval_stop_tokens("grpo_verifier_step1000", {"chat_template": True}, str(checkpoint))
+
+
+def test_eval_accepts_controlled_eos_and_skips_non_chat_models(tmp_path):
+    prepared = _write_generation_config(tmp_path / "prepared", [151645, 151643])
+    # Controlled checkpoint passes; a non-chat baseline is skipped even if its path
+    # has no generation_config at all.
+    assert_eval_stop_tokens("grpo_verifier", {"chat_template": True}, str(prepared))
+    assert_eval_stop_tokens("base_qwen05", {"chat_template": False}, str(tmp_path / "missing"))
 
 
 def test_protocol_a_pins_prompt_and_generation(tmp_path):
