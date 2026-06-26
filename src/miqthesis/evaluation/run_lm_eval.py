@@ -52,6 +52,7 @@ def build_command(
             f"pretrained={model_path}"
             f",dtype={eval_config.get('dtype', 'bfloat16')}"
             f",max_num_batched_tokens={eval_config.get('max_num_batched_tokens', 32768)}"
+            f",max_num_seqs={eval_config.get('max_num_seqs', 256)}"
         ),
         "--tasks",
         str(
