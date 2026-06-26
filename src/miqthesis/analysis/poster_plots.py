@@ -202,6 +202,33 @@ def plot_reward_decomposition(grpo_logs_dir: Path, output_dir: Path) -> None:
     _save(fig, output_dir, "barplot_reward_decomposition_final")
 
 
+def plot_training_curves(grpo_logs_dir: Path, output_dir: Path) -> None:
+    """GRPO training curves (#4) straight from the per-step logs, so they render
+    with no GPU and no Protocol A data (the standard make_plots also draws these,
+    but only once the leaderboard tables exist)."""
+    files = sorted(Path(grpo_logs_dir).glob("*.jsonl"))
+    frames = []
+    for path in files:
+        frame = pd.read_json(path, lines=True)
+        if frame.empty:
+            continue
+        frame["run_id"] = path.stem
+        frames.append(frame)
+    if not frames:
+        return
+    logs = pd.concat(frames, ignore_index=True)
+    for metric, stem in (
+        ("mean_reward", "lineplot_grpo_reward"),
+        ("valid_json_rate", "lineplot_grpo_valid_json"),
+        ("exact_match_rate", "lineplot_grpo_exact_match"),
+    ):
+        if metric in logs:
+            fig, axis = plt.subplots(figsize=(8, 4))
+            sns.lineplot(data=logs, x="step", y=metric, hue="run_id", ax=axis)
+            axis.set(xlabel="GRPO step", ylabel=metric.replace("_", " "))
+            _save(fig, output_dir, stem)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sweep_csv", default="results/validation/checkpoint_sweep.csv")
@@ -220,9 +247,10 @@ def main() -> None:
     else:
         print(f"skip leaderboard CI: {args.stats_csv} not found")
     if Path(args.grpo_logs_dir).exists():
+        plot_training_curves(Path(args.grpo_logs_dir), output_dir)
         plot_reward_decomposition(Path(args.grpo_logs_dir), output_dir)
     else:
-        print(f"skip reward decomposition: {args.grpo_logs_dir} not found")
+        print(f"skip training curves + decomposition: {args.grpo_logs_dir} not found")
 
 
 if __name__ == "__main__":
