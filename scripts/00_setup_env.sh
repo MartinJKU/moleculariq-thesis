@@ -57,9 +57,12 @@ if [[ "${MIQ_INSTALL_DEPS:-0}" == "1" ]]; then
     fi
     # One resolution pass under constraints-eval.txt keeps Transformers in
     # vLLM's compatible window so the lm-eval harness cannot drag in a release
-    # that vLLM 0.6.4 fails to import.
+    # that vLLM 0.6.4 fails to import. The chem extra (moleculariq-core + rdkit)
+    # is required at eval time too: the harness task_processor and our own
+    # verify_outputs both import moleculariq_core. It does not touch the
+    # vLLM/Transformers pins, so it stays inside the constrained window.
     python -m pip install -c constraints-eval.txt \
-      -e . \
+      -e ".[chem]" \
       "vllm==0.6.4.post1" \
       -e "external/moleculariq-eval[vllm]"
   fi
