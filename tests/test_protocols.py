@@ -59,6 +59,38 @@ def test_repeat_override_inherits_official_task(tmp_path):
     assert "include:" in text
 
 
+def test_repeat_override_retags_function_fields(tmp_path):
+    task_dir = tmp_path / "eval" / "lm_eval" / "tasks" / "moleculariq"
+    task_dir.mkdir(parents=True)
+    (task_dir / "moleculariq_pass_at_k.yaml").write_text(
+        "task: moleculariq_pass_at_k\n"
+        "process_docs: !function task_processor.process_docs\n"
+        "doc_to_text: !function task_processor.doc_to_text\n"
+        "doc_to_target: target\n"
+        "process_results: !function task_processor.process_results_pass_at_k\n"
+        "repeats: 3\n",
+        encoding="utf-8",
+    )
+    override = write_task_override(
+        tmp_path / "eval", "moleculariq_pass_at_k", 1, tmp_path
+    )
+    text = override.read_text(encoding="utf-8")
+    abs_dir = task_dir.resolve().as_posix()
+    # !function fields must keep the tag and be qualified with the base task's
+    # absolute dir; without the tag lm_eval leaves them as strings and calling
+    # them raises "'str' object is not callable".
+    assert f"process_docs: !function {abs_dir}/task_processor.process_docs" in text
+    assert f"doc_to_text: !function {abs_dir}/task_processor.doc_to_text" in text
+    assert (
+        f"process_results: !function {abs_dir}/task_processor.process_results_pass_at_k"
+        in text
+    )
+    # Plain-string fields must not be re-tagged or path-prefixed; doc_to_target
+    # (a column name) is inherited verbatim through the include instead.
+    assert "doc_to_target: !function" not in text
+    assert f"{abs_dir}/target" not in text
+
+
 def test_escalation_is_validation_only():
     validation = pd.DataFrame(
         {

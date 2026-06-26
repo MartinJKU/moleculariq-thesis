@@ -107,31 +107,43 @@ def write_task_override(
     if not task_file.exists():
         raise FileNotFoundError(f"Cannot build repeat override; missing {task_file}")
 
-    # The base task YAML uses !function tags; register a no-op constructor so
-    # safe_load treats them as plain strings instead of raising ConstructorError.
-    _yaml.SafeLoader.add_constructor(
-        "!function", lambda loader, node: loader.construct_scalar(node)
+    # The base task YAML tags callable fields with !function (e.g.
+    # "process_docs: !function task_processor.process_docs") but leaves others as
+    # plain strings (e.g. "doc_to_target: target"). Read it with a loader that
+    # remembers which values carried the !function tag so the two can be told
+    # apart when re-emitting them below.
+    class _FunctionRef(str):
+        """A base-config value that was written with the !function YAML tag."""
+
+    class _BaseLoader(_yaml.SafeLoader):
+        pass
+
+    _BaseLoader.add_constructor(
+        "!function",
+        lambda loader, node: _FunctionRef(loader.construct_scalar(node)),
     )
-    base_cfg = _yaml.safe_load(task_file.read_text(encoding="utf-8")) or {}
+    base_cfg = _yaml.load(task_file.read_text(encoding="utf-8"), Loader=_BaseLoader) or {}
 
     lines = [
         f'include: "{task_file.resolve().as_posix()}"',
         f"task: {base_task}_controlled_repeats_{repeats}",
         f"repeats: {repeats}",
     ]
-    # Re-specify callable fields so lm_eval resolves them in the override's
-    # own context; the include mechanism does not always re-run resolution on
-    # inherited string function references.
-    # lm_eval resolves "module.fn" relative to the YAML file's directory, so
-    # prefix with the base task directory to produce an absolute reference that
-    # works regardless of where the override file lives.
+    # Re-emit the !function fields in the override so resolution happens in the
+    # override's own loading context rather than relying on the include to carry
+    # callables through. The !function tag is essential: without it lm_eval keeps
+    # the value as a plain string and calling it raises "'str' object is not
+    # callable". lm_eval resolves a !function reference relative to the YAML
+    # file's directory, so qualify it with the base task's absolute directory
+    # because the override lives elsewhere (under results/). Plain-string fields
+    # such as doc_to_target are inherited verbatim via the include and must not
+    # be re-tagged or path-prefixed.
     task_dir = task_file.resolve().parent.as_posix()
     for field in ("process_docs", "doc_to_text", "doc_to_target", "process_results"):
-        if field in base_cfg:
-            value = base_cfg[field]
-            if value and not value.startswith("/"):
-                value = f"{task_dir}/{value}"
-            lines.append(f"{field}: {value}")
+        value = base_cfg.get(field)
+        if isinstance(value, _FunctionRef):
+            ref = value if value.startswith("/") else f"{task_dir}/{value}"
+            lines.append(f"{field}: !function {ref}")
     lines += ["metadata:", "  version: controlled-1", ""]
 
     override = Path(output_dir) / f"{base_task}_repeats_{repeats}.yaml"
