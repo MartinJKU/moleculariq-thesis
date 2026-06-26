@@ -3,7 +3,8 @@ task: moleculariq_pass_at_k
 system_prompt: >-
   You are an expert chemist. Provide answers in <answer>JSON</answer> format.
 extraction_function: moleculariq_eval_default
-batch_size: auto
+batch_size: 64
+max_num_seqs: 64
 dtype: bfloat16
 log_samples: true
 generation:

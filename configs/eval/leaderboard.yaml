@@ -5,7 +5,8 @@ native_generation_config: true
 official_system_prompt_and_extractor: true
 system_prompt: >-
   You are an expert chemist. Provide answers in <answer>JSON</answer> format.
-batch_size: auto
+batch_size: 64
+max_num_seqs: 64
 dtype: bfloat16
 log_samples: true
 output_root: results/raw/lm_eval/protocol_b

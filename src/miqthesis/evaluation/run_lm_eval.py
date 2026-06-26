@@ -48,7 +48,13 @@ def build_command(
         "--model",
         "vllm",
         "--model_args",
-        f"pretrained={model_path},dtype={eval_config.get('dtype', 'bfloat16')}",
+        (
+            f"pretrained={model_path},"
+            f"dtype={eval_config.get('dtype', 'bfloat16')},"
+            # vLLM needs an explicit max_num_seqs; lm-eval's "auto" batch sizing
+            # leaves it None, which vLLM 0.6.4 rejects in SchedulerConfig.
+            f"max_num_seqs={int(eval_config.get('max_num_seqs', 64))}"
+        ),
         "--tasks",
         str(
             eval_config.get(
