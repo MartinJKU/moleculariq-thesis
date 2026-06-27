@@ -1,0 +1,74 @@
+digraph MolecularIQTrainingCompact {
+    rankdir=LR;
+    bgcolor="white";
+    splines=spline;
+    nodesep=0.45;
+    ranksep=0.75;
+    fontname="Helvetica";
+    node [fontname="Helvetica", shape=box, style="rounded,filled",
+          penwidth=2.2, margin="0.22,0.16", fontsize=17];
+    edge [fontname="Helvetica", fontsize=14, color="#37474F", penwidth=2.2,
+          arrowsize=1.0];
+
+    labelloc="t";
+    fontsize=30;
+    label=<<b>Two-Stage Training: Full-Parameter SFT &#8594; Verifier-GRPO</b><br/><font point-size="17" color="#546E7A">Qwen2.5 on MolecularIQ &#183; symbolic verifier reward &#183; full-parameter throughout</font>>;
+
+    // ---- data (end cap) ----
+    data [label=<<b>MolecularIQ data</b><br/><font point-size="13">leakage-filtered pool<br/>count &#183; index &#183; generation<br/>SFT chat + GRPO prompts</font>>,
+          fillcolor="#E8F5E9", color="#2E7D32"];
+
+    // ---- base model ----
+    base [label=<<b>Qwen2.5</b><br/><font point-size="13">0.5B &#8594; 1.5B &#8594; 3B</font>>,
+          fillcolor="#FAFAFA", color="#424242"];
+
+    // ---- SFT ----
+    subgraph cluster_sft {
+        label=<<b>1 &#183; SFT</b>>;
+        labeljust="l"; fontsize=20; fontcolor="#0D47A1";
+        style="rounded,filled"; color="#1565C0"; fillcolor="#E3F2FD"; penwidth=2.6;
+        sft [label=<<b>Supervised fine-tuning</b><br/><font point-size="13">causal-LM cross-entropy (full chat seq)<br/>targets <font face="Courier">&lt;answer&gt;JSON&lt;/answer&gt;</font> &#183; multitask<br/>lr 1e-5 &#183; full-parameter</font>>,
+             fillcolor="#90CAF9", color="#0D47A1"];
+    }
+
+    sftckpt [label=<<b>SFT checkpoint</b><br/><font point-size="13">+ canonical gen-config gate</font>>,
+             fillcolor="#E1F5FE", color="#0277BD"];
+
+    // ---- GRPO ----
+    subgraph cluster_grpo {
+        label=<<b>2 &#183; GRPO</b>>;
+        labeljust="l"; fontsize=20; fontcolor="#E65100";
+        style="rounded,filled"; color="#E65100"; fillcolor="#FFF3E0"; penwidth=2.6;
+
+        policy  [label=<<b>Policy</b>>, fillcolor="#FFCC80", color="#E65100"];
+        rollout [label=<<b>Rollout</b><br/><font point-size="13">G=4 samples<br/>T 0.7 / top_p 0.95</font>>,
+                 fillcolor="#FFE0B2", color="#E65100"];
+        reward  [label=<<b>Symbolic verifier reward</b><br/><font point-size="13">format + JSON validity<br/>exact / field accuracy<br/>RDKit SMILES + constraints</font>>,
+                 fillcolor="#FFF59D", color="#F9A825"];
+        update  [label=<<b>Group-relative advantage</b><br/><font point-size="13">+ KL &#946; 0.02 to ref &#183; lr 2e-6</font>>,
+                 fillcolor="#FFCC80", color="#E65100"];
+
+        policy -> rollout -> reward -> update;
+        update -> policy [label="  update", style=bold, color="#E65100",
+                          constraint=false];
+    }
+
+    grpockpt [label=<<b>GRPO checkpoint</b><br/><font point-size="13">grpo_verifier / grpo_format</font>>,
+              fillcolor="#FFF3E0", color="#E65100"];
+
+    // ---- eval (end cap) ----
+    eval [label=<<b>Evaluation</b><br/><font point-size="13">Protocol A (controlled)<br/>Protocol B (leaderboard)<br/><b>avg_accuracy</b> + pass@k</font>>,
+          fillcolor="#F3E5F5", color="#6A1B9A"];
+
+    // ---- spine ----
+    data -> sft [label="  chat"];
+    base -> sft [label="  init"];
+    sft -> sftckpt;
+    sftckpt -> policy [label="  init policy", color="#E65100", lhead=cluster_grpo];
+    sftckpt -> reward [style=invis];
+    data -> rollout [label="  prompts", style=dashed, color="#E65100", constraint=false];
+    update -> grpockpt [ltail=cluster_grpo];
+    grpockpt -> eval;
+
+    { rank=same; data; base; }
+}

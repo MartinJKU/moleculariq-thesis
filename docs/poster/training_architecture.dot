@@ -1,0 +1,161 @@
+digraph MolecularIQTraining {
+    // ----- global look -----
+    rankdir=TB;
+    bgcolor="white";
+    splines=spline;
+    nodesep=0.35;
+    ranksep=0.55;
+    fontname="Helvetica";
+    node [fontname="Helvetica", shape=box, style="rounded,filled",
+          penwidth=1.6, margin="0.16,0.10", fontsize=12];
+    edge [fontname="Helvetica", fontsize=10, color="#37474F", penwidth=1.4,
+          arrowsize=0.8];
+
+    labelloc="t";
+    fontsize=24;
+    label=<<b>MolecularIQ &#8212; Full-Parameter SFT &#8594; Verifier-GRPO Training Architecture</b><br/><font point-size="13" color="#546E7A">Qwen2.5 (0.5B &#8594; 1.5B &#8594; 3B ladder) &#183; full-parameter only &#183; symbolic-verifier reward</font>>;
+
+    // =========================================================
+    // STAGE 0 : DATA CONSTRUCTION
+    // =========================================================
+    subgraph cluster_data {
+        label=<<b>0 &#183; Data construction</b>>;
+        labeljust="l"; fontsize=15; fontcolor="#1B5E20";
+        style="rounded,filled"; color="#2E7D32"; fillcolor="#F1F8E9"; penwidth=2;
+
+        src    [label=<<b>MolecularIQ source</b><br/>benchmark test set + train pool<br/><font point-size="10">(HF datasets)</font>>,
+                fillcolor="#E8F5E9", color="#2E7D32"];
+        leak   [label=<<b>Leakage filter</b><br/>RDKit canonicalization<br/><font point-size="10">no benchmark molecule may appear in training</font>>,
+                fillcolor="#E8F5E9", color="#2E7D32"];
+        split  [label=<<b>Molecule-level split</b><br/>deterministic bucket &#183; 4% val<br/><font point-size="10">train/val molecule pools disjoint</font>>,
+                fillcolor="#E8F5E9", color="#2E7D32"];
+        gen    [label=<<b>Symbolic task generation</b> (moleculariq-core)<br/>families: count &#183; index &#183; generation/constraint<br/><font point-size="10">SMILES aug: randomized 25% / kekulized 25% &#183; 1&#8211;5 properties/q</font>>,
+                fillcolor="#DCEDC8", color="#2E7D32"];
+        sftjsonl [label=<<b>SFT data</b> (chat JSONL)<br/>system / user / <font face="Courier">&lt;answer&gt;JSON&lt;/answer&gt;</font><br/><font point-size="10">balanced multitask interleave &#183; 150k train / 5k val</font>>,
+                fillcolor="#E8F5E9", color="#2E7D32"];
+        grpojsonl [label=<<b>GRPO data</b> (prompt-only JSONL)<br/>system / user &#8594; target + task_type + constraints<br/><font point-size="10">systematic sample &#183; 50k train / 2k val</font>>,
+                fillcolor="#E8F5E9", color="#2E7D32"];
+
+        src -> leak -> split -> gen;
+        gen -> sftjsonl;
+        sftjsonl -> grpojsonl [label="  prompt-only", style=dashed];
+    }
+
+    // =========================================================
+    // STAGE 1 : SFT
+    // =========================================================
+    base [label=<<b>Qwen2.5-0.5B</b> base weights<br/><font point-size="10">local snapshot &#183; offline</font>>,
+          fillcolor="#FAFAFA", color="#424242"];
+
+    subgraph cluster_sft {
+        label=<<b>1 &#183; Supervised fine-tuning (SFT)</b>>;
+        labeljust="l"; fontsize=15; fontcolor="#0D47A1";
+        style="rounded,filled"; color="#1565C0"; fillcolor="#E3F2FD"; penwidth=2;
+
+        collator [label=<<b>CausalChatCollator</b><br/>apply Qwen chat template<br/><font point-size="10">pad &#8594; label -100 &#183; max_seq 1024</font>>,
+                  fillcolor="#BBDEFB", color="#1565C0"];
+        trainer_sft [label=<<b>HF Trainer</b> &#183; full-parameter<br/>causal-LM cross-entropy &#183; full chat sequence<br/><font point-size="10">only padding masked (-100) &#183; lr 1e-5 cosine &#183; 2 ep &#183; bf16 + grad-ckpt &#183; eff. batch 64</font>>,
+                  fillcolor="#90CAF9", color="#0D47A1", penwidth=2];
+        sftvar [label=<<b>SFT variants</b><br/>count &#183; index &#183; generation &#183; <b>multitask</b>>,
+                  fillcolor="#BBDEFB", color="#1565C0"];
+        sftckpt [label=<<b>checkpoints/sft_multitask</b><br/><font point-size="10">selected SFT policy</font>>,
+                  shape=box, fillcolor="#E1F5FE", color="#0277BD", penwidth=2];
+
+        collator -> trainer_sft;
+        sftvar -> trainer_sft [dir=none, style=dotted, constraint=false];
+        trainer_sft -> sftckpt;
+    }
+
+    // =========================================================
+    // BRIDGE : CHECKPOINT PREPARATION
+    // =========================================================
+    subgraph cluster_bridge {
+        label=<<b>Checkpoint preparation (invariant gate)</b>>;
+        labeljust="l"; fontsize=13; fontcolor="#37474F";
+        style="rounded,filled"; color="#546E7A"; fillcolor="#ECEFF1"; penwidth=1.8;
+
+        prep [label=<<b>prepare_checkpoint</b><br/>canonical generation_config &#183; eos includes <font face="Courier">&lt;|im_end|&gt;</font><br/><font point-size="10">reject adapters &#183; validate load &#183; Protocol-A consistency</font>>,
+              fillcolor="#CFD8DC", color="#546E7A"];
+    }
+
+    // =========================================================
+    // STAGE 2 : GRPO
+    // =========================================================
+    subgraph cluster_grpo {
+        label=<<b>2 &#183; Group Relative Policy Optimization (GRPO)</b>>;
+        labeljust="l"; fontsize=15; fontcolor="#E65100";
+        style="rounded,filled"; color="#E65100"; fillcolor="#FFF3E0"; penwidth=2;
+
+        policy [label=<<b>Policy</b> (init = SFT ckpt, full-parameter)>,
+                fillcolor="#FFE0B2", color="#E65100"];
+        rollout [label=<<b>Rollout</b><br/>G = 4 completions / prompt<br/><font point-size="10">T 0.7 &#183; top_p 0.95 &#183; max 256 tok</font>>,
+                fillcolor="#FFE0B2", color="#E65100"];
+        adv [label=<<b>Group-relative advantage</b><br/>+ KL penalty &#946; 0.02 to ref<br/><font point-size="10">lr 2e-6 &#183; 1 ep &#183; eff. batch 16</font>>,
+                fillcolor="#FFCC80", color="#E65100", penwidth=2];
+        ref [label=<<b>Reference</b><br/>frozen SFT policy>,
+                fillcolor="#FFF8E1", color="#FF8F00"];
+
+        policy -> rollout;
+        rollout -> adv [label="  rewards"];
+        adv -> policy [label="  policy-gradient update", style=bold, color="#E65100"];
+        ref -> adv [label="  KL", style=dashed, color="#FF8F00"];
+
+        grpockpt [label=<<b>checkpoints/grpo_format</b><br/><b>checkpoints/grpo_verifier</b>>,
+                shape=box, fillcolor="#FFF3E0", color="#E65100", penwidth=2];
+        adv -> grpockpt [style=invis];
+        policy -> grpockpt [label="  save", constraint=false, style=dashed];
+    }
+
+    // ----- reward sidecar -----
+    subgraph cluster_reward {
+        label=<<b>Symbolic reward</b>>;
+        labeljust="l"; fontsize=13; fontcolor="#F57F17";
+        style="rounded,filled"; color="#F9A825"; fillcolor="#FFFDE7"; penwidth=1.8;
+
+        rformat [label=<<b>format reward</b><br/><font point-size="10">answer tags &#183; valid JSON &#183; JSON types &#183; clean trailing</font>>,
+                fillcolor="#FFF9C4", color="#F9A825"];
+        rverif [label=<<b>verifier reward</b><br/><font point-size="10">count/index: field-acc + exact match</font><br/><font point-size="10">generation: RDKit valid SMILES + constraint satisfaction</font><br/><font point-size="10">(moleculariq-core evaluate_answer)</font>>,
+                fillcolor="#FFF59D", color="#F9A825"];
+    }
+    rollout -> rformat [style=dashed, color="#F9A825", constraint=false];
+    rollout -> rverif  [style=dashed, color="#F9A825", constraint=false];
+    rverif  -> adv     [style=invis];
+
+    // =========================================================
+    // STAGE 3 : EVALUATION
+    // =========================================================
+    subgraph cluster_eval {
+        label=<<b>3 &#183; Evaluation (separate vLLM env)</b>>;
+        labeljust="l"; fontsize=15; fontcolor="#4A148C";
+        style="rounded,filled"; color="#6A1B9A"; fillcolor="#F3E5F5"; penwidth=2;
+
+        protoA [label=<<b>Protocol A</b> &#183; controlled internal comparison<br/><font point-size="10">fixed decoding / prompt / extractor / repeats &#183; all variants</font>>,
+                fillcolor="#E1BEE7", color="#6A1B9A"];
+        protoB [label=<<b>Protocol B</b> &#183; leaderboard-comparable<br/><font point-size="10">best model &#183; native settings</font>>,
+                fillcolor="#E1BEE7", color="#6A1B9A"];
+        metric [label=<<b>avg_accuracy</b> (headline) + pass@1 / pass@3<br/><font point-size="10">size-escalation decided from validation only</font>>,
+                fillcolor="#F3E5F5", color="#6A1B9A", penwidth=2];
+
+        protoA -> metric;
+        protoB -> metric [style=dashed];
+    }
+
+    // =========================================================
+    // cross-stage spine
+    // =========================================================
+    sftjsonl -> collator [label="  train/val", lhead=cluster_sft];
+    base -> trainer_sft [label="  initialize", color="#1565C0"];
+    sftckpt -> prep;
+    prep -> policy [label="  init policy", color="#E65100"];
+    prep -> ref [label="  init ref", style=dashed, color="#FF8F00"];
+    grpojsonl -> rollout [label="  prompts", color="#E65100"];
+    grpockpt -> protoA [label="  + SFT variants", color="#6A1B9A"];
+    grpockpt -> protoB [style=dashed, color="#6A1B9A"];
+
+    // =========================================================
+    // cross-cutting invariants footer
+    // =========================================================
+    invariants [shape=note, fillcolor="#FFFDE7", color="#9E9E9E", fontsize=11,
+        label=<<b>Cross-cutting invariants</b><br align="left"/>&#8226; full-parameter only &#8212; enforced at config + runtime + checkpoint<br align="left"/>&#8226; molecule-level no-leakage guarantee<br align="left"/>&#8226; reproducibility: fixed seeds, run_manifest.json, resource logging<br align="left"/>&#8226; offline mode on compute nodes (no network)<br align="left"/>>];
+    metric -> invariants [style=invis];
+}
