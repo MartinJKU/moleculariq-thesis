@@ -27,6 +27,7 @@ PROMOTE_GLOBS=(
   pytorch_model.bin pytorch_model.bin.index.json "pytorch_model-*.bin"
   tokenizer.json tokenizer_config.json tokenizer.model
   vocab.json merges.txt special_tokens_map.json added_tokens.json
+  chat_template.jinja chat_template.json
 )
 
 has_weights() {
