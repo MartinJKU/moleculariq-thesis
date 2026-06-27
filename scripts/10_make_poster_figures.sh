@@ -44,6 +44,7 @@ if [[ -z "$MIQ_SWEEP_EXTRA" && -d checkpoints/_attic/grpo_verifier_step1000 ]]; 
   MIQ_SWEEP_EXTRA="verifier=1000:checkpoints/_attic/grpo_verifier_step1000"
 fi
 MIQ_QUAL_MODELS="${MIQ_QUAL_MODELS:-instruct_qwen05 sft_multitask grpo_verifier}"
+MIQ_QUAL_LIMIT="${MIQ_QUAL_LIMIT:-300}"  # #7 needs only a few examples; cap the slow HF-generate pass
 MIQ_VAL_JSONL="${MIQ_VAL_JSONL:-data/processed/sft_multitask_val.jsonl}"
 
 PLOTS=results/plots
@@ -103,7 +104,7 @@ if [[ "$MIQ_RUN_VALIDATION" == "1" ]]; then
   qual_args=()
   for model in $MIQ_QUAL_MODELS; do qual_args+=(--model_id "$model"); done
   stage "Validation attempts" \
-    python -m miqthesis.evaluation.run_validation "${qual_args[@]}"
+    python -m miqthesis.evaluation.run_validation "${qual_args[@]}" --limit "$MIQ_QUAL_LIMIT"
 fi
 
 # --- poster-only figures: #1, #2, #4, #6 (whatever inputs exist) ------------

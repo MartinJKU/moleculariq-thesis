@@ -168,10 +168,38 @@ def evaluate_model(
     return pd.DataFrame(records)
 
 
-def run(config_path: str, models_path: str, model_ids: list[str]) -> None:
+def _subsample_rows(
+    rows: list[dict[str, Any]], limit: int | None, seed: int
+) -> list[dict[str, Any]]:
+    """Deterministic, task-stratified subsample; preserves original order."""
+    if not limit or limit >= len(rows):
+        return rows
+    frame = pd.DataFrame(
+        {
+            "idx": range(len(rows)),
+            "task_type": [row.get("task_type", "unknown") for row in rows],
+        }
+    )
+    total = len(frame)
+    picks = []
+    for _, group in frame.groupby("task_type"):
+        count = min(len(group), max(1, round(limit * len(group) / total)))
+        picks.append(group.sample(count, random_state=seed))
+    picked = pd.concat(picks).sort_values("idx")
+    return [rows[index] for index in picked["idx"].tolist()]
+
+
+def run(
+    config_path: str,
+    models_path: str,
+    model_ids: list[str],
+    limit: int | None = None,
+) -> None:
     config = load_yaml(config_path)
     models = load_yaml(models_path)["models"]
-    rows = _load_jsonl(config["input_file"])
+    rows = _subsample_rows(
+        _load_jsonl(config["input_file"]), limit, int(config.get("seed", 42))
+    )
     output_dir = Path(config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
     attempts = []
@@ -202,11 +230,18 @@ def main() -> None:
         dest="model_ids",
         default=None,
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Evaluate at most this many items (task-stratified). Default: all.",
+    )
     args = parser.parse_args()
     run(
         args.config,
         args.models,
         args.model_ids or ["instruct_qwen05", "sft_multitask"],
+        args.limit,
     )
 
 
