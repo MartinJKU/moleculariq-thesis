@@ -21,10 +21,18 @@ source scripts/00_setup_env.sh
 MIQ_SWEEP_RUNS="${MIQ_SWEEP_RUNS:-verifier=checkpoints/grpo_verifier format=checkpoints/grpo_format}"
 MIQ_SWEEP_BASELINE="${MIQ_SWEEP_BASELINE:-sft=checkpoints/eval/sft_multitask}"
 MIQ_SWEEP_LIMIT="${MIQ_SWEEP_LIMIT:-400}"
+MIQ_SWEEP_EXTRA="${MIQ_SWEEP_EXTRA:-}"
+# Auto-include a checkpoint rescued from rotation (overridable); "label=step:path".
+if [[ -z "$MIQ_SWEEP_EXTRA" && -d checkpoints/_attic/grpo_verifier_step1000 ]]; then
+  MIQ_SWEEP_EXTRA="verifier=1000:checkpoints/_attic/grpo_verifier_step1000"
+fi
 
 run_args=()
 for spec in $MIQ_SWEEP_RUNS; do
   run_args+=(--run "$spec")
+done
+for spec in $MIQ_SWEEP_EXTRA; do
+  run_args+=(--extra "$spec")
 done
 
 python -m miqthesis.evaluation.sweep_checkpoints \

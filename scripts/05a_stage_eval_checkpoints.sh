@@ -79,6 +79,9 @@ done
 echo "==> Staging all checkpoints into checkpoints/eval/ (prepare + consistency validate)"
 bash scripts/05_prepare_checkpoints.sh
 
+echo "==> Ensuring every eval checkpoint has a chat template"
+bash scripts/05b_repair_eval_chat_template.sh
+
 echo "==> Done. Eval-ready checkpoints under checkpoints/eval/:"
 if [[ -d checkpoints/eval ]]; then
   ls -1 checkpoints/eval | sed 's/^/    /'

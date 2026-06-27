@@ -46,6 +46,18 @@ def _parse_spec(spec: str) -> tuple[str, Path]:
     return Path(spec).name, Path(spec)
 
 
+def _parse_extra(spec: str) -> tuple[str, int, Path]:
+    """Parse a "label=step:path" extra-checkpoint specification.
+
+    An extra is a single staged model directory plotted at an explicit step on an
+    existing run's curve — e.g. a checkpoint rescued from rotation before it was
+    deleted. Example: ``verifier=1000:checkpoints/_attic/grpo_verifier_step1000``.
+    """
+    label, rest = spec.split("=", 1)
+    step_str, path = rest.split(":", 1)
+    return label, int(step_str), Path(path)
+
+
 def _subsample(
     rows: list[dict[str, Any]], limit: int | None, seed: int
 ) -> list[dict[str, Any]]:
@@ -134,6 +146,7 @@ def run(
     limit: int | None,
     tokenizer_path: str | None,
     output: str,
+    extra_specs: list[str] | None = None,
 ) -> None:
     config = load_yaml(config_path)
     seed = int(config.get("seed", 42))
@@ -166,6 +179,16 @@ def run(
                 )
             )
 
+    for spec in extra_specs or []:
+        label, step, path = _parse_extra(spec)
+        if not path.exists():
+            print(f"WARNING: extra checkpoint not found, skipping: {path}")
+            continue
+        print(f"Adding extra checkpoint {label}@{step} from {path}")
+        records.extend(
+            _eval_one(label, step, "grpo", path, rows, config, tokenizer_path)
+        )
+
     frame = pd.DataFrame.from_records(records)
     destination = Path(output)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +217,17 @@ def main() -> None:
         default=None,
         help="Fallback tokenizer source for raw checkpoints (defaults to the baseline path).",
     )
+    parser.add_argument(
+        "--extra",
+        action="append",
+        dest="extras",
+        default=[],
+        help=(
+            'Single staged checkpoint as "label=step:path", placed at an explicit '
+            "step on an existing run's curve (repeatable). E.g. "
+            "verifier=1000:checkpoints/_attic/grpo_verifier_step1000"
+        ),
+    )
     parser.add_argument("--output", default="results/validation/checkpoint_sweep.csv")
     args = parser.parse_args()
     if not args.runs:
@@ -205,6 +239,7 @@ def main() -> None:
         args.limit,
         args.tokenizer_path,
         args.output,
+        args.extras,
     )
 
 

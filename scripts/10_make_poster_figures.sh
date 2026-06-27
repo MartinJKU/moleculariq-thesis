@@ -37,6 +37,12 @@ fi
 MIQ_SWEEP_RUNS="${MIQ_SWEEP_RUNS:-verifier=checkpoints/grpo_verifier format=checkpoints/grpo_format}"
 MIQ_SWEEP_BASELINE="${MIQ_SWEEP_BASELINE:-sft=checkpoints/eval/sft_multitask}"
 MIQ_SWEEP_LIMIT="${MIQ_SWEEP_LIMIT:-400}"
+MIQ_SWEEP_EXTRA="${MIQ_SWEEP_EXTRA:-}"
+# Auto-include a checkpoint rescued from rotation (overridable). Space-separated
+# entries, each "label=step:path"; the label joins an existing run's curve.
+if [[ -z "$MIQ_SWEEP_EXTRA" && -d checkpoints/_attic/grpo_verifier_step1000 ]]; then
+  MIQ_SWEEP_EXTRA="verifier=1000:checkpoints/_attic/grpo_verifier_step1000"
+fi
 MIQ_QUAL_MODELS="${MIQ_QUAL_MODELS:-instruct_qwen05 sft_multitask grpo_verifier}"
 MIQ_VAL_JSONL="${MIQ_VAL_JSONL:-data/processed/sft_multitask_val.jsonl}"
 
@@ -85,6 +91,7 @@ fi
 if [[ "$MIQ_RUN_SWEEP" == "1" ]]; then
   sweep_args=()
   for spec in $MIQ_SWEEP_RUNS; do sweep_args+=(--run "$spec"); done
+  for spec in $MIQ_SWEEP_EXTRA; do sweep_args+=(--extra "$spec"); done
   stage "Checkpoint sweep" \
     python -m miqthesis.evaluation.sweep_checkpoints \
       "${sweep_args[@]}" --baseline "$MIQ_SWEEP_BASELINE" \
