@@ -130,7 +130,22 @@ def plot_reward_decomposition(grpo_logs_dir: Path, output_dir: Path) -> None:
         frame = pd.read_json(path, lines=True)
         if frame.empty or "step" not in frame:
             continue
-        frames[path.stem] = frame.dropna(subset=["step"]).sort_values("step")
+        # The reward fn logs once per generation batch, so many high-variance rows
+        # share a step. Average per step and lightly smooth so trends are legible
+        # instead of a solid noise band.
+        agg = (
+            frame.dropna(subset=["step"])
+            .groupby("step", as_index=False)
+            .mean(numeric_only=True)
+            .sort_values("step")
+        )
+        window = max(1, len(agg) // 40)
+        for column in agg.columns:
+            if column != "step":
+                agg[column] = agg[column].rolling(
+                    window, min_periods=1, center=True
+                ).mean()
+        frames[path.stem] = agg
     if not frames:
         return
 
@@ -216,7 +231,14 @@ def plot_training_curves(grpo_logs_dir: Path, output_dir: Path) -> None:
         frames.append(frame)
     if not frames:
         return
-    logs = pd.concat(frames, ignore_index=True)
+    # Average the per-batch reward logs to one row per (run, step) so the lines
+    # are clean rather than a wide bootstrap band over hundreds of noisy points.
+    logs = (
+        pd.concat(frames, ignore_index=True)
+        .dropna(subset=["step"])
+        .groupby(["run_id", "step"], as_index=False)
+        .mean(numeric_only=True)
+    )
     for metric, stem in (
         ("mean_reward", "lineplot_grpo_reward"),
         ("valid_json_rate", "lineplot_grpo_valid_json"),
