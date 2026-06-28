@@ -2,167 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Architecture — training pipeline + verifiable evaluation</title>
+<title>Architecture — visual</title>
 <style>
   :root{
-    --ink:#11302e; --ink-2:#0c2422; --paper:#f6f4ee; --paper-2:#efece2;
-    --verifier:#2f8f5b; --verifier-d:#226e45; --sft:#e8a13a; --bad:#c0584f;
-    --line:#cfc9ba; --text:#1d2b29; --muted:#6d7672;
+    --ink:#11302e; --ink-2:#0c2422; --paper:#f6f4ee; --paper-2:#eae6da;
+    --verifier:#2f8f5b; --verifier-d:#226e45; --sft:#e8a13a; --amber-d:#b9791a; --bad:#c0584f;
+    --line:#cfc9ba; --text:#1d2b29; --muted:#75796f;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{ background:#888; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; }
   .mono{ font-family:"JetBrains Mono","SF Mono",ui-monospace,Consolas,monospace; }
 
-  .diagram{
-    width:1560px; background:var(--paper); color:var(--text);
-    padding:42px 46px 38px; position:relative;
-  }
-  .title{ font-size:30px; font-weight:800; letter-spacing:-.3px; }
-  .title .g{ color:var(--verifier); }
-  .subtitle{ font-size:18px; color:var(--muted); margin-top:6px; margin-bottom:30px; }
+  .diagram{ width:1500px; background:var(--paper); color:var(--text); padding:44px 48px 40px; position:relative; overflow:hidden; }
 
-  .lanetag{ font-size:16px; font-weight:800; letter-spacing:.18em; text-transform:uppercase;
-    color:var(--verifier-d); display:flex; align-items:center; gap:10px; margin:6px 0 14px; }
-  .lanetag::before{ content:""; width:30px; height:5px; background:var(--verifier); border-radius:2px;}
-  .lanetag.ev{ color:#9a6a12;} .lanetag.ev::before{ background:var(--sft);}
+  /* faint molecule motif */
+  .bgmotif{ position:absolute; inset:0; opacity:.05; pointer-events:none; }
 
-  .lane{ display:flex; align-items:stretch; gap:12px; }
-  .node{ background:#fff; border:2.5px solid var(--line); border-radius:11px;
-    padding:15px 17px; display:flex; flex-direction:column; justify-content:center; flex:1; min-width:0;}
-  .node .t{ font-weight:800; font-size:20px; line-height:1.12;}
-  .node .d{ font-size:14.5px; color:var(--muted); margin-top:6px; line-height:1.32;}
-  .node.data{ background:var(--paper-2); border-style:dashed;}
-  .node.model{ border-color:var(--sft); border-top-width:7px; border-top-color:var(--sft);}
-  .node.verifier{ background:#e7f3ec; border-color:var(--verifier); border-top-width:7px;}
-  .node.metrics{ background:var(--ink); color:#eaf3ef; border-color:var(--ink);}
-  .node.metrics .t{ color:#fff;} .node.metrics .d{ color:#b7cabf;}
-  .node.opt{ opacity:.92; }
-  .node .badge{ font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--verifier-d); margin-bottom:5px;}
-  .node.model .badge{ color:#9a6a12;}
+  .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:24px; position:relative; z-index:2;}
+  .title{ font-size:34px; font-weight:800; letter-spacing:-.4px;}
+  .title .g{ color:var(--verifier);}
+  .subtitle{ font-size:18px; color:var(--muted); margin-top:7px;}
+  .hero-mol{ flex:none; width:150px; height:120px; }
 
-  .arrow{ display:flex; align-items:center; justify-content:center; color:var(--verifier);
-    font-size:32px; font-weight:800; flex:none; width:30px;}
+  .lanetag{ font-size:16px; font-weight:800; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--verifier-d); display:flex; align-items:center; gap:10px; margin:30px 0 16px; position:relative; z-index:2;}
+  .lanetag::before{ content:""; width:34px; height:6px; background:var(--verifier); border-radius:3px;}
+  .lanetag.ev{ color:var(--amber-d);} .lanetag.ev::before{ background:var(--sft);}
 
-  /* GRPO step loop */
-  .looprow{ display:flex; gap:18px; margin:16px 0 6px; align-items:stretch;}
-  .loopbracket{ flex:none; width:170px; display:flex; flex-direction:column; justify-content:center;
-    border-left:4px solid var(--sft); padding-left:16px;}
-  .loopbracket .t{ font-weight:800; font-size:18px;}
-  .loopbracket .d{ font-size:14px; color:var(--muted); margin-top:5px; line-height:1.3;}
-  .loop{ flex:1; background:#fbf9f3; border:2.5px dashed var(--sft); border-radius:12px;
-    padding:14px 16px; display:flex; align-items:center; gap:10px; position:relative;}
-  .chip{ background:#fff; border:2px solid var(--line); border-radius:9px; padding:11px 13px;
-    font-size:15px; font-weight:700; flex:1; text-align:center; line-height:1.2;}
-  .chip.v{ background:#e7f3ec; border-color:var(--verifier); color:var(--verifier-d);}
-  .chip .s{ display:block; font-weight:500; color:var(--muted); font-size:12.5px; margin-top:3px;}
-  .miniarrow{ color:var(--sft); font-size:22px; font-weight:800; flex:none;}
-  .loopback{ text-align:center; font-size:14px; color:var(--sft); font-weight:700; margin-top:9px;}
+  .lane{ display:flex; align-items:stretch; gap:14px; position:relative; z-index:2;}
+  .card{ flex:1; background:#fff; border:2.5px solid var(--line); border-radius:16px;
+    padding:20px 14px 18px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:11px;}
+  .card .icon{ width:54px; height:54px; color:var(--verifier-d);}
+  .card .t{ font-weight:800; font-size:20px; line-height:1.12;}
+  .card .s{ font-size:14px; color:var(--muted); line-height:1.25;}
+  .card.data{ background:var(--paper-2); border-style:dashed;}
+  .card.model{ border-color:var(--sft); border-width:3px;} .card.model .icon{ color:var(--amber-d);}
+  .card.model .badge{ font-size:11.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--amber-d);}
+  .card.verifier{ background:#e6f3eb; border-color:var(--verifier); border-width:3px;}
+  .card.metrics{ background:var(--ink); border-color:var(--ink);}
+  .card.metrics .t{ color:#fff;} .card.metrics .s{ color:#b7cabf;} .card.metrics .icon{ color:#7ed3a3;}
 
-  .bridge{ display:flex; align-items:center; gap:12px; margin:14px 0; padding-left:4px;}
-  .bridge .down{ color:var(--verifier); font-size:26px; font-weight:800;}
-  .bridge .lbl{ font-size:15px; color:var(--muted);}
+  .arrow{ display:flex; align-items:center; color:var(--verifier); flex:none;}
+  .arrow svg{ width:30px; height:30px;}
 
-  .callout{ margin-top:26px; background:#e7f3ec; border:2px solid var(--verifier);
-    border-left:9px solid var(--verifier); border-radius:9px; padding:14px 18px;
-    font-size:16.5px; line-height:1.4;}
-  .callout b{ color:var(--verifier-d);}
-  .spacer{ height:8px; }
+  /* compact GRPO loop */
+  .loop{ display:flex; align-items:center; gap:12px; margin:14px 0 4px; padding:14px 18px;
+    background:#fbf8f1; border:2.5px dashed var(--sft); border-radius:16px; position:relative; z-index:2;}
+  .loop .lt{ font-size:14px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--amber-d); flex:none; margin-right:4px;}
+  .lchip{ display:flex; align-items:center; gap:9px; background:#fff; border:2px solid var(--line);
+    border-radius:11px; padding:10px 14px; font-size:15.5px; font-weight:700; flex:1; justify-content:center;}
+  .lchip svg{ width:24px; height:24px; flex:none; color:var(--amber-d);}
+  .lchip.v{ background:#e6f3eb; border-color:var(--verifier); color:var(--verifier-d);} .lchip.v svg{ color:var(--verifier-d);}
+  .larrow{ color:var(--sft); flex:none;} .larrow svg{ width:22px; height:22px;}
+  .loopback{ text-align:center; font-size:14px; color:var(--amber-d); font-weight:700; margin-top:7px; position:relative; z-index:2;}
+
+  .tagline{ margin-top:26px; background:#e6f3eb; border:2px solid var(--verifier); border-left:9px solid var(--verifier);
+    border-radius:11px; padding:15px 20px; font-size:18px; font-weight:600; color:var(--text); position:relative; z-index:2;
+    display:flex; align-items:center; gap:14px;}
+  .tagline svg{ width:34px; height:34px; color:var(--verifier-d); flex:none;}
+  .tagline b{ color:var(--verifier-d);}
 </style>
 </head>
 <body>
 <div class="diagram">
 
-  <div class="title">Verifier-Guided <span class="g">GRPO</span> — training pipeline &amp; verifiable evaluation</div>
-  <div class="subtitle">One RDKit symbolic verifier: the <b>reward</b> during training, the <b>exact scorer</b> at evaluation.</div>
+  <!-- faint background molecule motif -->
+  <svg class="bgmotif" viewBox="0 0 1500 760" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="#11302e" stroke-width="2">
+      <g transform="translate(1180,540) scale(2.6)">
+        <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15"/>
+        <polygon points="52,-15 78,0 78,30 52,45 26,30 26,0"/>
+      </g>
+      <g transform="translate(120,560) scale(2)">
+        <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15"/>
+        <line x1="26" y1="-15" x2="50" y2="-28"/>
+      </g>
+    </g>
+  </svg>
 
-  <!-- ================= TRAINING ================= -->
-  <div class="lanetag">Training pipeline</div>
+  <!-- ===== header with molecule graphic ===== -->
+  <div class="top">
+    <div>
+      <div class="title">Verifier-Guided <span class="g">GRPO</span> — pipeline</div>
+      <div class="subtitle">One RDKit verifier: reward at train time, exact scorer at eval time.</div>
+    </div>
+    <svg class="hero-mol" viewBox="0 0 170 130">
+      <!-- stylised molecule: benzene ring, an OH, atom index dots -->
+      <g fill="none" stroke="#226e45" stroke-width="3" stroke-linejoin="round">
+        <polygon points="70,38 100,55 100,90 70,107 40,90 40,55"/>
+        <line x1="45" y1="60" x2="45" y2="85"/>
+        <line x1="95" y1="60" x2="95" y2="85"/>
+        <line x1="100" y1="55" x2="130" y2="38"/>
+        <line x1="70" y1="38" x2="70" y2="14"/>
+      </g>
+      <g fill="#2f8f5b">
+        <circle cx="70" cy="38" r="4.5"/><circle cx="100" cy="55" r="4.5"/>
+        <circle cx="100" cy="90" r="4.5"/><circle cx="70" cy="107" r="4.5"/>
+        <circle cx="40" cy="90" r="4.5"/><circle cx="40" cy="55" r="4.5"/>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#11302e">
+        <text x="70" y="32" text-anchor="middle">0</text>
+        <text x="112" y="54">1</text><text x="112" y="96">2</text>
+        <text x="70" y="124" text-anchor="middle">3</text>
+        <text x="20" y="96">4</text><text x="20" y="54">5</text>
+      </g>
+      <text x="135" y="34" font-family="Segoe UI" font-size="16" font-weight="800" fill="#c0584f">OH</text>
+      <text x="70" y="9" font-family="Segoe UI" font-size="13" font-weight="800" fill="#c0584f">·6</text>
+    </svg>
+  </div>
+
+  <!-- ===== TRAINING ===== -->
+  <div class="lanetag">Training</div>
   <div class="lane">
-    <div class="node data">
-      <div class="badge">data</div>
-      <div class="t">MolecularIQ trainPool</div>
-      <div class="d">SMILES pool (ml-jku). Held-out tail reserved for evaluation.</div>
+    <div class="card data">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round">
+        <polygon points="24,7 38,15 38,31 24,39 10,31 10,15"/><line x1="14" y1="18" x2="14" y2="28"/>
+        <line x1="24" y1="7" x2="24" y2="2"/></svg>
+      <div class="t">MolecularIQ</div><div class="s">SMILES trainPool</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node">
-      <div class="t">Q&amp;A generation</div>
-      <div class="d"><span class="mono">moleculariq-core</span> + RDKit. Counting · indexing · constrained generation.</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 6v12L9 37a3 3 0 0 0 3 4h24a3 3 0 0 0 3-4L29 18V6"/><line x1="16" y1="6" x2="32" y2="6"/><line x1="13" y1="31" x2="35" y2="31"/></svg>
+      <div class="t">Generate Q&amp;A</div><div class="s">RDKit · counts/index/gen</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node data">
-      <div class="t">GRPO dataset</div>
-      <div class="d">Prompt-only, R1-style scaffold (&lt;reasoning&gt;/&lt;answer&gt;).</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card model">
+      <div class="badge">from instruct · no SFT</div>
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M40 24a16 16 0 1 1-5-11.6"/><polyline points="40,7 40,15 32,15"/></svg>
+      <div class="t">GRPO trainer</div><div class="s">Qwen2.5-0.5B · TRL</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node model">
-      <div class="badge">warm-start: instruct base · no SFT</div>
-      <div class="t">GRPO trainer</div>
-      <div class="d">From <span class="mono">Qwen2.5-0.5B-Instruct</span> · full-parameter · TRL.</div>
-    </div>
-    <div class="arrow">→</div>
-    <div class="node">
-      <div class="t">Checkpoint</div>
-      <div class="d">Fine-tuned policy πθ.</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="14" y1="6" x2="14" y2="42"/><path d="M14 8h22l-6 8 6 8H14"/></svg>
+      <div class="t">Checkpoint</div><div class="s">policy πθ</div>
     </div>
   </div>
 
-  <!-- GRPO step loop detail -->
-  <div class="looprow">
-    <div class="loopbracket">
-      <div class="t">GRPO step</div>
-      <div class="d">repeated each batch — the inner RL loop of the trainer above</div>
-    </div>
-    <div class="loop">
-      <div class="chip">policy πθ</div>
-      <div class="miniarrow">→</div>
-      <div class="chip">sample G completions<span class="s">G=4 per prompt</span></div>
-      <div class="miniarrow">→</div>
-      <div class="chip v">RDKit verifier → reward<span class="s">format + exact-match + shaped partial</span></div>
-      <div class="miniarrow">→</div>
-      <div class="chip">group-relative advantage<span class="s">no value model</span></div>
-      <div class="miniarrow">→</div>
-      <div class="chip">update πθ<span class="s">+ KL to ref</span></div>
-    </div>
+  <!-- compact GRPO loop -->
+  <div class="loop">
+    <span class="lt">GRPO step</span>
+    <div class="lchip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="3" y="7" width="13" height="14" rx="2"/><rect x="8" y="3" width="13" height="14" rx="2" fill="#fff"/></svg>
+      sample ×G</div>
+    <span class="larrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h13"/><path d="M12 6l7 6-7 6"/></svg></span>
+    <div class="lchip v">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V5z"/><polyline points="8.5,12 11,14.5 16,9"/></svg>
+      verifier → reward</div>
+    <span class="larrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h13"/><path d="M12 6l7 6-7 6"/></svg></span>
+    <div class="lchip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16l4-5 3 3 4-7"/></svg>
+      group advantage</div>
+    <span class="larrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h13"/><path d="M12 6l7 6-7 6"/></svg></span>
+    <div class="lchip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><polyline points="20,3 20,7 16,7"/></svg>
+      update πθ</div>
   </div>
-  <div class="loopback">↺ &nbsp;back to πθ &nbsp;—&nbsp; advantage is the per-prompt group mean; reward variance drives the gradient</div>
+  <div class="loopback">↺ repeated each batch — reward variance across the G samples drives the gradient</div>
 
-  <!-- bridge -->
-  <div class="bridge">
-    <span class="down">↓</span>
-    <span class="lbl">base model and trained checkpoint are evaluated under the <b>identical</b> protocol</span>
-  </div>
-
-  <!-- ================= EVALUATION ================= -->
+  <!-- ===== EVALUATION ===== -->
   <div class="lanetag ev">Evaluation · MolecularIQ bench</div>
   <div class="lane">
-    <div class="node data">
-      <div class="badge">data</div>
-      <div class="t">Held-out split</div>
-      <div class="d">Disjoint trainPool tail; same official generator + verifier.</div>
+    <div class="card data">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="10" y="7" width="28" height="34" rx="3"/><line x1="17" y1="17" x2="31" y2="17"/><line x1="17" y1="24" x2="31" y2="24"/><line x1="17" y1="31" x2="26" y2="31"/></svg>
+      <div class="t">Held-out bench</div><div class="s">disjoint molecules</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node">
-      <div class="t">Sample completions</div>
-      <div class="d">pass@k: N samples / question · T = 0.8 · k ≤ 256.</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round">
+        <rect x="7" y="16" width="22" height="26" rx="3"/><rect x="14" y="10" width="22" height="26" rx="3" fill="#fff"/><rect x="21" y="4" width="22" height="26" rx="3" fill="#fff"/></svg>
+      <div class="t">Sample ×256</div><div class="s">pass@k · T=0.8</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node verifier">
-      <div class="badge">same oracle</div>
-      <div class="t">RDKit symbolic verifier</div>
-      <div class="d">Exact match — no LLM judge, no leakage.</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card verifier">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 4l16 6v12c0 10-7 16-16 20-9-4-16-10-16-20V10z"/><polyline points="17,24 22,29 32,17"/></svg>
+      <div class="t">RDKit verifier</div><div class="s">exact · no LLM judge</div>
     </div>
-    <div class="arrow">→</div>
-    <div class="node metrics">
-      <div class="t">Metrics &amp; plots</div>
-      <div class="d">pass@1 / pass@k (Chen et al.) · accuracy · validity vs correctness · answer-diversity diagnostics · crossover report.</div>
+    <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14"/><path d="M13 6l7 6-7 6"/></svg></div>
+    <div class="card metrics">
+      <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 8v32h32"/><path d="M13 33c8 0 7-16 14-16s6 8 13 4"/></svg>
+      <div class="t">pass@k curves</div><div class="s">elicit vs. expand</div>
     </div>
   </div>
 
-  <div class="callout">
-    <b>Why it's a clean RL signal:</b> the same symbolic verifier scores every completion exactly, so the
-    training reward and the benchmark are the same oracle — no learned reward model, no LLM judge, and no
-    train/test leakage. pass@k then separates RL <b>sharpening</b> from genuine capability <b>expansion</b>.
+  <!-- tagline -->
+  <div class="tagline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V5z"/><polyline points="8.5,12 11,14.5 16,9"/></svg>
+    <span>Same symbolic verifier for <b>reward</b> and <b>benchmark</b> — no learned reward model, no LLM judge, no leakage.</span>
   </div>
 
 </div>
