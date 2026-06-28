@@ -1,0 +1,7 @@
+task,model,base,pass_at_1_base,pass_at_1_model,crossover_k,interpretation
+constraint_generation:carbon_atom_count,grpo,base,0.02,0.03,16,"elicitation (grpo leads early, base catches up by k=16)"
+multi_count:ring_count+aromatic_ring_count+fused_ring_count,grpo,base,0.02,0.16,,expansion (grpo above base at all k)
+multi_index:ring_index+aromatic_ring_index,grpo,base,0.07,0.003,1,regression (base >= grpo across all k)
+single_count:hba_count,grpo,base,0.04,0.17,16,"elicitation (grpo leads early, base catches up by k=16)"
+single_count:ring_count,grpo,base,0.13,0.66,64,"elicitation (grpo leads early, base catches up by k=64)"
+single_index:ring_index,grpo,base,0.08,0.002,1,regression (base >= grpo across all k)

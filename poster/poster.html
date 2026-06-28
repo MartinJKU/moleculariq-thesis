@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MolecularIQ GRPO Poster — A0 landscape</title>
+<style>
+  /* ============================================================
+     A0 LANDSCAPE RESEARCH POSTER — hybrid #betterposter
+     1189 mm x 841 mm. Built to print to PDF at true A0 size.
+     Replace figure <img src> paths with your real figures.
+     ============================================================ */
+
+  :root{
+    --ink:        #11302e;
+    --ink-2:      #0c2422;
+    --paper:      #f6f4ee;
+    --paper-2:    #efece2;
+    --verifier:   #2f8f5b;
+    --verifier-d: #226e45;
+    --sft:        #e8a13a;
+    --bad:        #c0584f;
+    --line:       #d8d3c6;
+    --text:       #1d2b29;
+    --muted:      #6d7672;
+    --paper-on-ink:#eef3ef;
+
+    --t-title:   74px;
+    --t-sub:     32px;
+    --t-punch:   90px;
+    --t-h:       38px;
+    --t-body:    24px;
+    --t-cap:     19px;
+    --t-eyebrow: 21px;
+    --t-mono:    22px;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ background:#888; }
+
+  .poster{
+    width:1189mm; height:841mm;
+    background:var(--paper); color:var(--text);
+    font-family:"Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    position:relative; overflow:hidden;
+    display:flex; flex-direction:column; margin:0 auto;
+  }
+  .mono{ font-family:"JetBrains Mono","SF Mono",ui-monospace,"Cascadia Mono","Consolas",monospace; }
+
+  .motif{ position:absolute; inset:0; pointer-events:none; z-index:0; opacity:0.05; }
+
+  /* HEADER */
+  header{
+    position:relative; z-index:2;
+    background:linear-gradient(160deg,var(--ink) 0%,var(--ink-2) 100%);
+    color:var(--paper-on-ink);
+    padding:28mm 40mm 24mm 40mm;
+    display:grid; grid-template-columns: 1fr auto; gap:24mm; align-items:center;
+  }
+  header .eyebrow{
+    font-size:var(--t-eyebrow); letter-spacing:.32em; text-transform:uppercase;
+    color:var(--verifier); font-weight:700; margin-bottom:10mm;
+  }
+  header h1{ font-size:var(--t-title); line-height:1.04; font-weight:800; letter-spacing:-.5px; max-width:1500px; }
+  header h1 .smiles{ color:var(--verifier); }
+  header .sub{ font-size:var(--t-sub); color:#b9c9c2; margin-top:12mm; font-weight:400; line-height:1.25; max-width:1500px; }
+  header .sub b{ color:#eaf3ee; font-weight:700; }
+  .authors{ text-align:right; font-size:26px; line-height:1.5; color:#cdd9d3;
+    border-left:2px solid rgba(255,255,255,.18); padding-left:22mm; min-width:330px; }
+  .authors .names{ font-size:30px; font-weight:700; color:#fff; margin-bottom:6mm;}
+  .authors .aff{ color:#9fb1ab; font-size:23px;}
+  .authors .meta{ margin-top:10mm; font-size:22px; color:#88c7a3;}
+
+  .tape{
+    position:relative; z-index:2; background:var(--verifier); color:#06231a;
+    font-size:20px; font-weight:600; padding:7mm 40mm; letter-spacing:.03em;
+    display:flex; gap:22mm; align-items:center; overflow:hidden; white-space:nowrap;
+  }
+  .tape b{ font-weight:800; }
+
+  /* BODY GRID */
+  .body{ position:relative; z-index:2; flex:1; display:grid;
+    grid-template-columns: 3.1fr 4.5fr 4.4fr; gap:0; min-height:0; }
+  .col{ padding:20mm 24mm; display:flex; flex-direction:column; gap:14mm; min-height:0;}
+  .col.left{ background:var(--paper-2); border-right:2px solid var(--line); }
+  .col.mid{ border-right:2px solid var(--line); }
+  .col.right{ gap:12mm; }
+
+  .eyebrow{ font-size:var(--t-eyebrow); letter-spacing:.22em; text-transform:uppercase;
+    color:var(--verifier-d); font-weight:800; display:flex; align-items:center; gap:5mm; }
+  .eyebrow::before{ content:""; width:18mm; height:5px; background:var(--verifier);
+    display:inline-block; border-radius:2px; }
+
+  h2.section{ font-size:var(--t-h); font-weight:800; letter-spacing:-.3px; margin-top:3mm; line-height:1.1; }
+  p,li{ font-size:var(--t-body); line-height:1.42; }
+  .lead{ font-size:26px; }
+  ul{ padding-left:30px; }
+  li{ margin-bottom:6mm; }
+  li::marker{ color:var(--verifier); }
+
+  .hyp{ background:#fff; border:2px solid var(--line); border-left:10px solid var(--verifier);
+    padding:13mm 15mm; border-radius:4px; }
+  .hyp .tag{ font-size:20px; font-weight:800; letter-spacing:.1em; color:var(--verifier-d);
+    text-transform:uppercase; margin-bottom:5mm; display:block;}
+  .hyp p{ font-size:23px; line-height:1.34; }
+
+  .chiprow{ display:flex; flex-wrap:wrap; gap:6mm; margin-top:4mm;}
+  .chip{ font-size:20px; font-weight:600; padding:4mm 8mm; border-radius:40px;
+    background:#fff; border:2px solid var(--line); color:var(--text); }
+  .chip.green{ background:var(--verifier); color:#06231a; border-color:var(--verifier);}
+  .chip.amber{ background:var(--sft); color:#3a2606; border-color:var(--sft);}
+
+  /* PUNCHLINE */
+  .punch-wrap{ display:flex; flex-direction:column; gap:9mm; }
+  .punch{ font-size:var(--t-punch); line-height:0.99; font-weight:800; letter-spacing:-1.5px; }
+  .punch .hl{ color:var(--verifier); }
+  .punch .down{ color:var(--muted); }
+  .punch-sub{ font-size:26px; line-height:1.3; color:#33433f; font-weight:400; max-width:1300px;}
+  .punch-sub b{ color:var(--verifier-d); font-weight:800;}
+
+  figure{ background:#fff; border:2px solid var(--line); border-radius:6px; padding:10mm;
+    display:flex; flex-direction:column; gap:7mm; }
+  figure img{ width:100%; height:auto; display:block; border-radius:2px; }
+  figcaption{ font-size:var(--t-cap); color:var(--muted); line-height:1.36; }
+  figcaption b{ color:var(--text); }
+  .col.mid > figure img{ max-height:300mm; object-fit:contain; }
+
+  /* fix note */
+  .note{ background:#eaf4ee; border:2px solid var(--verifier); border-left:10px solid var(--verifier);
+    border-radius:6px; padding:12mm 15mm; }
+  .note h3{ font-size:26px; font-weight:800; color:var(--verifier-d); margin-bottom:5mm; letter-spacing:-.2px;}
+  .note p.intro{ font-size:21px; color:#33433f; margin-bottom:5mm; line-height:1.34;}
+  .note li{ font-size:21px; line-height:1.3; margin-bottom:4mm;}
+  .note .scale{ font-size:19px; color:var(--muted); margin-top:3mm; }
+
+  /* regime cards */
+  .regimes{ display:flex; flex-direction:column; gap:7mm; }
+  .regime{ background:#fff; border:2px solid var(--line); border-radius:6px; padding:10mm 13mm; }
+  .regime .rt{ font-size:24px; font-weight:800; margin-bottom:3mm; display:flex; align-items:center; gap:5mm;}
+  .regime .dot{ width:18px;height:18px;border-radius:50%; display:inline-block; flex:none;}
+  .regime p{ font-size:21px; line-height:1.32; color:#33433f; }
+  .regime .num{ font-weight:800; color:var(--text);}
+
+  /* receipt */
+  .receipt{ background:var(--ink-2); color:#cfe6d8; border-radius:6px; padding:11mm 14mm;
+    font-size:19px; line-height:1.5; }
+  .receipt .lab{ font-size:18px; letter-spacing:.06em; text-transform:uppercase; color:#88c7a3; font-weight:800;}
+  .receipt .mono{ display:block; font-size:20px; }
+  .receipt .bad{ color:#f0a3a3;}
+  .receipt .good{ color:#8fe0b0;}
+  .receipt .cmt{ color:#9fb1ab; }
+
+  .takeaways{ background:var(--ink); color:var(--paper-on-ink); border-radius:8px;
+    padding:14mm 16mm; display:flex; flex-direction:column; gap:7mm;}
+  .takeaways .eyebrow{ color:var(--verifier); }
+  .takeaways .eyebrow::before{ background:var(--verifier); }
+  .takeaways h2{ color:#fff; font-size:32px; font-weight:800;}
+  .takeaways ul{ padding-left:28px;}
+  .takeaways li{ font-size:23px; color:#d7e2dc; margin-bottom:5mm;}
+  .takeaways li::marker{ color:var(--verifier);}
+
+  .footrow{ display:grid; grid-template-columns: 1fr auto; gap:18mm; align-items:center; margin-top:auto;}
+  .footrow .refs{ font-size:17px; color:var(--muted); line-height:1.42;}
+  .footrow .refs b{ color:var(--text);}
+  .qr{ width:140px; height:140px; border:3px solid var(--ink); border-radius:8px;
+    display:grid; place-items:center; font-size:15px; text-align:center; color:var(--muted);
+    background:#fff; flex:none; line-height:1.2; padding:6px; }
+
+  .colorkey{ display:flex; gap:8mm; flex-wrap:wrap; align-items:center; font-size:20px;}
+  .colorkey .k{ display:flex; gap:3mm; align-items:center;}
+  .colorkey .sw{ width:22px; height:22px; border-radius:5px; display:inline-block;}
+
+  /* verifier worked-example */
+  .mol-example{ background:#fff; border:2px solid var(--line); border-radius:6px;
+    border-top:8px solid var(--verifier); padding:13mm 14mm; display:flex; flex-direction:column; gap:8mm; }
+  .mol-example .molbox{ background:var(--paper); border:1.5px solid var(--line); border-radius:5px;
+    padding:5mm; display:flex; align-items:center; justify-content:center; }
+  .mol-example .molbox svg{ width:100%; max-height:78mm; }
+  .qa{ display:flex; flex-direction:column; gap:5mm; }
+  .qa .q, .qa .a{ display:flex; gap:6mm; align-items:flex-start; font-size:21px; line-height:1.32;}
+  .qa .lab{ font-weight:800; font-size:17px; letter-spacing:.08em; text-transform:uppercase;
+    padding:2mm 5mm; border-radius:4px; flex:none; margin-top:1mm; min-width:74px; text-align:center;}
+  .qa .q .lab{ background:var(--ink); color:#fff; }
+  .qa .a .lab{ background:var(--verifier); color:#06231a; }
+  .qa .a .val{ color:var(--verifier-d); font-weight:700; }
+  .qa .verify{ font-size:18px; color:var(--muted); display:flex; align-items:flex-start; gap:4mm;
+    border-top:1.5px dashed var(--line); padding-top:5mm; }
+  .qa .verify .tick{ color:var(--verifier); font-weight:800; font-size:22px; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- faint molecular graph motif -->
+  <svg class="motif" viewBox="0 0 1189 841" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="#11302e" stroke-width="1.4">
+      <g transform="translate(880,520) scale(2.2)">
+        <polygon points="0,-34 29,-17 29,17 0,34 -29,17 -29,-17" />
+        <polygon points="58,-17 87,0 87,34 58,51 29,34 29,0" />
+        <line x1="0" y1="-34" x2="0" y2="-64"/><line x1="87" y1="0" x2="113" y2="-15"/>
+        <circle cx="0" cy="-64" r="4" fill="#11302e" stroke="none"/>
+        <circle cx="113" cy="-15" r="4" fill="#11302e" stroke="none"/>
+      </g>
+      <g transform="translate(120,610) scale(1.8) rotate(20)">
+        <polygon points="0,-34 29,-17 29,17 0,34 -29,17 -29,-17" />
+      </g>
+      <g transform="translate(560,150) scale(1.5) rotate(-12)">
+        <polygon points="0,-34 29,-17 29,17 0,34 -29,17 -29,-17" />
+        <polygon points="0,34 29,51 29,85 0,102 -29,85 -29,51" />
+      </g>
+    </g>
+  </svg>
+
+  <!-- ============================ HEADER ============================ -->
+  <header>
+    <div>
+      <div class="eyebrow">Reinforcement learning with verifiable rewards · Chemistry LLMs</div>
+      <h1>Does <span class="smiles">GRPO</span> teach a small model to reason over molecules — or just elicit what it already knows?</h1>
+      <div class="sub">A symbolic RDKit verifier as reward on a 0.5B model, read through <b>pass@k</b>: we separate
+        RL <b>sharpening</b> (same ceiling) from RL <b>expanding</b> capability — and find a sharp,
+        reward-driven failure mode.</div>
+    </div>
+    <div class="authors">
+      <div class="names">[Your Name]</div>
+      <div class="aff">[Group / Institute]<br>[University]</div>
+      <div class="aff" style="margin-top:6mm">Supervisors: [Names]</div>
+      <div class="meta mono">[Poster Session 2026]</div>
+    </div>
+  </header>
+
+  <!-- SMILES tape -->
+  <div class="tape">
+    <span class="mono"><b>Model</b> Qwen2.5-0.5B-Instruct</span>
+    <span class="mono"><b>Reward</b> RDKit verifier (+ shaped partial credit)</span>
+    <span class="mono"><b>Tasks</b> MolecularIQ · held-out trainPool split</span>
+    <span class="mono"><b>Eval</b> pass@k · k≤256 · T=0.8</span>
+    <span class="mono"><b>Train</b> GRPO from instruct · 1×A100</span>
+  </div>
+
+  <!-- ============================ BODY ============================ -->
+  <div class="body">
+
+    <!-- ---------------- LEFT ---------------- -->
+    <div class="col left">
+      <div>
+        <div class="eyebrow">Background</div>
+        <h2 class="section">Structure understanding, verifiably</h2>
+        <p class="lead" style="margin-top:7mm">Chemistry LLMs are scored on benchmarks that leak into
+          pretraining. <b>MolecularIQ</b> instead asks only <b>symbolically verifiable</b> questions about
+          the molecular graph — every answer is checked <i>exactly</i> with RDKit, isolating reasoning from
+          memorization and giving a clean, non-gameable RL reward.</p>
+        <div class="chiprow">
+          <span class="chip green">counting</span>
+          <span class="chip green">indexing</span>
+          <span class="chip green">constrained generation</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow">What the verifier checks</div>
+        <div class="mol-example" style="margin-top:5mm">
+          <div class="molbox">
+            <!-- inline numbered ring: phenol-style, ring atoms 0-5, O = 6 -->
+            <svg viewBox="0 0 320 210" xmlns="http://www.w3.org/2000/svg">
+              <g fill="none" stroke="#1d2b29" stroke-width="3">
+                <polygon points="160,55 213,85 213,145 160,175 107,145 107,85"/>
+                <line x1="150" y1="62" x2="150" y2="98"/>
+                <line x1="203" y1="91" x2="203" y2="139" transform="translate(0,0)"/>
+                <line x1="160" y1="55" x2="160" y2="25"/>
+              </g>
+              <g font-family="JetBrains Mono, monospace" font-size="19" font-weight="700" fill="#226e45">
+                <text x="160" y="49" text-anchor="middle">0</text>
+                <text x="226" y="86" text-anchor="middle">1</text>
+                <text x="226" y="156" text-anchor="middle">2</text>
+                <text x="160" y="197" text-anchor="middle">3</text>
+                <text x="92"  y="156" text-anchor="middle">4</text>
+                <text x="92"  y="86" text-anchor="middle">5</text>
+              </g>
+              <g font-family="Segoe UI, sans-serif" font-size="22" font-weight="800" fill="#c0584f">
+                <text x="160" y="20" text-anchor="middle">O · 6</text>
+              </g>
+            </svg>
+          </div>
+          <div class="qa">
+            <div class="q"><span class="lab">Task</span>
+              <span>Return the 0-based indices, in SMILES order, of every atom in a <b>ring</b>.</span></div>
+            <div class="a"><span class="lab">Answer</span>
+              <span class="mono"><span class="val">&lt;answer&gt;{"ring_index":[0,1,2,3,4,5]}&lt;/answer&gt;</span></span></div>
+            <div class="verify"><span class="tick">✓</span>
+              RDKit recomputes the exact set and grants reward <span class="mono">1</span> only on a full
+              match — no LLM judge, no leakage. (Atom 6, the O, must be excluded.)</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow">Hypotheses</div>
+        <div style="display:flex; flex-direction:column; gap:9mm; margin-top:5mm">
+          <div class="hyp">
+            <span class="tag">H1 · teach vs. elicit (main)</span>
+            <p>pass@k separates capability from sharpening. If GRPO raises pass@1 but the <b>base catches up
+              at large k</b>, RL only <i>elicited</i> existing skill; if GRPO stays <b>above base at all k</b>,
+              it <i>expanded</i> capability.</p>
+          </div>
+          <div class="hyp">
+            <span class="tag">H2 · compositional transfer</span>
+            <p>Skills trained on single properties should transfer to never-trained <b>compositions</b>
+              (single→multi) and from <b>analysis → synthesis</b> (counting → generating to a target).</p>
+          </div>
+          <div class="hyp">
+            <span class="tag">H3 · reward reachability</span>
+            <p>GRPO improves a task only where <b>exact</b> verifier success is reachable. Where it is not,
+              GRPO optimizes the dense <b>partial-credit proxy</b> instead — and can drop <b>below</b> the base.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow">Setup</div>
+        <ul style="margin-top:6mm">
+          <li><b>base</b> — Qwen2.5-0.5B-Instruct, no fine-tuning (reference).</li>
+          <li><b>GRPO</b> — full-parameter GRPO from the instruct base; verifier + shaped reward.</li>
+          <li><b>Train tasks</b> — pooled single-property counting + indexing.</li>
+          <li><b>Held out</b> — multi-property compositions, constrained generation, an unseen property (HBA).</li>
+        </ul>
+        <p style="margin-top:5mm; color:var(--muted); font-size:20px">Eval = disjoint tail of the MolecularIQ
+          trainPool; questions &amp; gold from the official generator, scored by the official RDKit verifier
+          (not the leaderboard partition). pass@k from 256 samples (Chen et al. estimator).</p>
+      </div>
+    </div>
+
+    <!-- ---------------- MIDDLE: punch + hero + fix note ---------------- -->
+    <div class="col mid">
+      <div class="punch-wrap">
+        <div class="eyebrow">Headline result</div>
+        <div class="punch">
+          GRPO <span class="hl">elicits</span>,<br>
+          it doesn't teach<br>
+          <span class="down">— and hacks the reward<br>where it can't reach.</span>
+        </div>
+        <div class="punch-sub">Verifier-GRPO boosts <b>first-try</b> counting accuracy and transfers
+          compositionally to unseen <b>multi-count</b> — but the base model's pass@k <b>catches up</b> at
+          large k (sharpening, not new capability). On atom-<b>indexing</b>, where exact success is
+          unreachable, GRPO over-covers to farm partial credit and falls <b>below base</b>.</div>
+      </div>
+
+      <figure class="fig-hero">
+        <img src="pass_at_k.png" alt="pass@k base vs GRPO across six MolecularIQ tasks">
+        <figcaption><b>Fig 1. pass@k, base vs. GRPO (0.5B).</b> x = attempts allowed per question (1→256,
+          log₂); y = fraction solved within k tries (exact RDKit match). <b>Left edge</b> = single-shot skill;
+          <b>right edge</b> = best-of-256 (latent ceiling). <b>Reading:</b> base catching up at large k ⇒
+          <i>elicitation</i>; GRPO above base at all k ⇒ <i>expansion</i>; GRPO below base ⇒ <i>regression</i>.
+          Top row = held-out tasks; bottom-middle &amp; bottom-right = in-distribution.</figcaption>
+      </figure>
+
+      <div class="note">
+        <h3>Making indexing learnable — why it failed → how to fix</h3>
+        <p class="intro">Indexing needs exact symbolic execution (parse SMILES → number heavy atoms →
+          perceive rings), so the base almost never samples a correct set and RL has nothing to reinforce.
+          Concretely:</p>
+        <ul>
+          <li><b>Cold-start SFT on RDKit-generated reasoning traces, then GRPO</b> — RL can't reinforce a
+            skill the base never samples.</li>
+          <li><b>Difficulty curriculum</b> — tiny molecules first, so the exact reward becomes reachable.</li>
+          <li><b>Remove the over-coverage incentive</b> — precision/size penalty, or binary-only reward
+            above a competence threshold.</li>
+          <li><b>Tool use</b> — let the model call RDKit and offload the symbolic work; makes model size
+            nearly irrelevant for this task family.</li>
+        </ul>
+        <p class="scale">Scale (a bigger base model) helps too, but is the brute-force version of cold-start.</p>
+      </div>
+    </div>
+
+    <!-- ---------------- RIGHT: regimes + receipt + takeaways ---------------- -->
+    <div class="col right">
+      <div>
+        <div class="eyebrow">Three regimes, one mechanism</div>
+        <div class="regimes" style="margin-top:5mm">
+          <div class="regime">
+            <div class="rt"><span class="dot" style="background:var(--sft)"></span>Elicitation (in-distribution)</div>
+            <p><span class="num">single_count : ring_count.</span> pass@1 <b>0.13 → 0.66</b>, but base
+              overtakes by <b>k≈64</b>. RL sharpened the base distribution — same ceiling. (Reproduces
+              Yue et al. 2025 in chemistry.)</p>
+          </div>
+          <div class="regime">
+            <div class="rt"><span class="dot" style="background:var(--verifier)"></span>Expansion + transfer (held-out)</div>
+            <p><span class="num">multi_count.</span> GRPO above base at <b>every k</b> (0.16 vs 0.02 @k=1;
+              0.71 vs 0.56 @k=256). Single-property skills <b>recombined</b> into an unseen task = real new
+              capability.</p>
+          </div>
+          <div class="regime">
+            <div class="rt"><span class="dot" style="background:var(--bad)"></span>Reward-hacking / regression</div>
+            <p><span class="num">single_index, multi_index.</span> GRPO ≈ 0, <b>below base</b> (~0.3). Exact
+              match unreachable → only the dense proxy gives signal → it gets hacked.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="eyebrow">Reward-hacking, caught in the act</div>
+        <div class="receipt" style="margin-top:5mm">
+          <span class="lab">task: ring_index &nbsp;·&nbsp; greedy acc = 0.00 (vs base ~0.31)</span>
+          <span class="mono cmt" style="margin-top:4mm">gold (one molecule):</span>
+          <span class="mono good">{"ring_index": [5,6,7,8,9,10]}</span>
+          <span class="mono cmt" style="margin-top:4mm">GRPO emits wide contiguous ranges (distinct=0.40 — not collapse):</span>
+          <span class="mono bad">[3,4,…,12]&nbsp;&nbsp;[0,1,…,8]&nbsp;&nbsp;[6,7,…,19]</span>
+          <span class="cmt" style="display:block; margin-top:5mm; font-size:18px">→ over-covers to farm
+            Jaccard overlap (high recall, low precision); the partial-credit signal is misaligned with
+            exact-match, so it <b>never</b> matches.</span>
+        </div>
+      </div>
+
+      <div class="takeaways">
+        <div class="eyebrow">Takeaways</div>
+        <h2>What this shows</h2>
+        <ul>
+          <li>pass@k cleanly separates RL <b>sharpening</b> from <b>new capability</b> — a 0.5B + exact
+            verifier is an ideal, cheap testbed for the elicitation-vs-expansion debate.</li>
+          <li>GRPO elicits in-distribution and transfers <b>compositionally</b> where the exact reward is
+            reachable (counting).</li>
+          <li>Where exact success is unreachable (indexing), dense partial credit gets <b>hacked</b> and GRPO
+            regresses below base — a concrete RLVR failure mode <i>with</i> its mechanism.</li>
+        </ul>
+        <div class="colorkey" style="margin-top:3mm; color:#cdd9d3">
+          <div class="k"><span class="sw" style="background:#1f77b4"></span>base</div>
+          <div class="k"><span class="sw" style="background:#ff7f0e"></span>GRPO</div>
+        </div>
+      </div>
+
+      <div class="footrow">
+        <div class="refs">
+          <b>Refs:</b> Yue et al., <i>Does RL Incentivize Reasoning Beyond the Base Model?</i> 2025
+          (arXiv:2504.13837) · Wen et al., <i>CoT-Pass@K</i> 2025 (2506.14245) ·
+          Narayanan et al., <i>ether0</i> 2025 (2506.17238) · Chen et al., pass@k 2021 (2107.03374) ·
+          MolecularIQ (ml-jku) · GRPO / DeepSeek-R1 2025.<br>
+          <b>Caveat:</b> partial GRPO checkpoint; held-out trainPool split (official generator+verifier),
+          not the leaderboard partition; pass@k credits the final answer, not the chain.<br>
+          <b>Code:</b> [your repo URL] &nbsp;·&nbsp; <b>Contact:</b> [email]
+        </div>
+        <div class="qr mono">QR<br>→ repo</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
