@@ -95,15 +95,10 @@
       <div class="d">Prompt-only, R1-style scaffold (&lt;reasoning&gt;/&lt;answer&gt;).</div>
     </div>
     <div class="arrow">→</div>
-    <div class="node model opt">
-      <div class="badge">optional</div>
-      <div class="t">SFT warm-start</div>
-      <div class="d">Full-parameter SFT on the train split (or skip: GRPO from instruct).</div>
-    </div>
-    <div class="arrow">→</div>
     <div class="node model">
+      <div class="badge">warm-start: instruct base · no SFT</div>
       <div class="t">GRPO trainer</div>
-      <div class="d">Qwen2.5-0.5B · full-parameter · TRL.</div>
+      <div class="d">From <span class="mono">Qwen2.5-0.5B-Instruct</span> · full-parameter · TRL.</div>
     </div>
     <div class="arrow">→</div>
     <div class="node">
