@@ -1,29 +1,42 @@
 # Poster defense — Q&A prep
 
-## ⚠️ Read first: what you ACTUALLY ran vs. what's a placeholder
+## ⚠️ Read first: TWO experiments, two settings — keep them straight
 
-Several examiner questions assume the poster's synthetic panels are real. Resolve
-this before the defense — you cannot defend numbers you did not produce.
+You ran two complementary experiments with different rewards and warm-starts.
+Examiners will probe the seams, so be explicit about which is which.
 
-**Real (defensible):**
-- GRPO trained full-parameter **from `Qwen2.5-0.5B-Instruct`, no SFT** (`miq_transfer_train.yaml`).
-- Reward = soft-format + **binary exact-match (w=2.0)** + **shaped partial credit (w=1.0)**
-  (Jaccard on index sets, numeric closeness on counts) + SMILES-validity (0.5).
-  **Not pure binary** — the poster tape saying "binary correctness" describes the *eval metric*, not the training reward. Fix the tape or be ready to clarify.
-- pass@k study: base vs GRPO, k≤256, n=256 samples/item, ~80–100 items/task, T=0.8, bootstrap CIs.
-- Greedy diagnostic (accuracy, distinct-answer-rate, json-valid) on 6 probe tasks.
-- One seed (42), one 0.5B model, a partial (~400-step) checkpoint, eval on a held-out trainPool tail.
+**Experiment A — accuracy comparison (Fig 1), separate repo [REAL]:**
+- Three independent models from Qwen2.5-0.5B: **base**, **SFT (from base)**, **GRPO (from base)**.
+- GRPO reward = **binary exact-match only** (RDKit / MolecularIQ). Eval metric = exact-match accuracy.
+- **Relabel "SFT+GRPO" → "GRPO".** GRPO is trained **from base, not from the SFT checkpoint**, so
+  the conditions are base / (prompted) / SFT / GRPO — three *parallel* models, not a chain.
+  The poster tape "binary correctness" is correct *for this experiment*.
 
-**Placeholder / NOT run (do not defend as real):**
-- Fig 1 four-condition bar chart (base/prompted/SFT/SFT+GRPO, the "2.1 → … %" numbers).
-- Fig 3 SMILES-robustness, Fig 5 validity-vs-correctness.
-- → Either run these (thesis-repo SFT pipeline) or relabel them "planned" / remove before the defense.
+**Experiment B — pass@k mechanism study (Fig 6 / H4), `multi-task-chemistry-rl` [REAL]:**
+- GRPO from **`Qwen2.5-0.5B-Instruct`**, **shaped** reward (exact + Jaccard on index / numeric on
+  counts + SMILES-validity), `miq_transfer_train.yaml`.
+- pass@k to 256, n=256 samples/item, ~80–100 items/task, T=0.8, bootstrap CIs; plus a greedy
+  diagnostic (accuracy / distinct-answer-rate / json-valid). One seed (42), ~400-step checkpoint.
+- This is where the **over-coverage index reward-hacking** appears (a shaped-reward artifact).
 
-**One correction to your own narrative:** the indexing failure is *not* cleanly "0.5B
-can't index." The base model **does** produce correct index sets at a nonzero rate
-(si_ring base pass@k ≈ 0.31 at k=256), and GRPO's index outputs are valid JSON
-(json_valid=1.0). So the proximal cause is **reward misalignment** (the shaped Jaccard
-proxy rewards over-coverage), not raw capacity. Lead with that; it's better supported.
+**⚠️ Consistency caveat (be ready for this):** the Fig 1 GRPO (from *base*, *binary* reward) and the
+pass@k GRPO (from *instruct*, *shaped* reward) are **different models**. So the pass@k mechanism
+story characterizes Experiment B, not literally the Fig 1 bar. Safest: present them as **two studies**
+("headline accuracy comparison" + "mechanism analysis"), or unify by running pass@k on the
+Experiment-A GRPO. Also confirm "base" = the same Qwen2.5-0.5B variant everywhere and matches the
+poster tape (base vs -Instruct).
+
+**Still to confirm (likely placeholder):** Fig 3 (SMILES robustness) and Fig 5
+(validity-vs-correctness) — defend only if you actually ran them; otherwise relabel "planned".
+
+**Two index failure modes, one per experiment (a strength — use it):**
+- *Experiment A (binary):* index exact-match ≈ 0 for all G → **zero group advantage → no gradient**
+  (no learning signal at all).
+- *Experiment B (shaped):* the Jaccard proxy gives signal but rewards **over-coverage** → the model
+  learns wide ranges that overlap but never exact-match, dropping **below** base.
+- Either way it's **not cleanly "0.5B can't index"**: the base samples correct sets at a nonzero rate
+  (si_ring base pass@k ≈ 0.31 at k=256) and GRPO's outputs are valid JSON (json_valid=1.0). Lead with
+  reward/initialization, not raw capacity.
 
 ---
 
@@ -44,13 +57,15 @@ proxy rewards over-coverage), not raw capacity. Lead with that; it's better supp
   The catch (see below) is that the shaped proxy we used is misaligned with exact-match.
 
 **Q: Why binary exact-match and not shaped/partial (e.g., Jaccard)? Wouldn't partial credit give signal where indexing gives none?**
-- **We did use shaped Jaccard** (index) + numeric-closeness (counts), on top of binary. So this
-  is not a "why didn't you" — it's a finding: **the shaped reward is what caused the indexing
-  failure.** Jaccard rewards overlap, and overlap is maximized by *over-covering* — emit a wide
-  contiguous atom range that contains the true ring (gold {5–10} ⊂ pred {3–12} → Jaccard ≈ 0.6).
-  The model faithfully optimized the proxy and never exact-matched, dropping **below** base on
-  exact-match. So partial credit *did* give signal — the wrong signal.
-- **What we'd do now:** add a precision/size penalty (penalize |pred|>|gold|), or anneal the
+- **We tested both — and that's the finding.** Experiment A's GRPO used **binary only**, so on
+  indexing all G completions score 0 → **no gradient** (your intuition is right: binary gives no
+  signal there). Experiment B **added shaped Jaccard** precisely to inject signal — and it
+  backfired: Jaccard rewards overlap, which is maximized by **over-covering** (gold {5–10} ⊂ pred
+  {3–12} → Jaccard ≈ 0.6), so the model emitted wide ranges that overlap but never exact-match,
+  dropping **below** base. So partial credit *did* give signal where binary gave none — but the
+  **wrong** signal.
+- **Takeaway:** the choice isn't binary-vs-shaped, it's that *naïve* shaping is misaligned with
+  exact-match. **What we'd do now:** precision/size penalty (penalize |pred|>|gold|), anneal the
   shaped weight to 0, or gate shaped credit behind a competence threshold. Predicted effect:
   removes the over-coverage optimum; whether exact-match then rises depends on cold-start (below).
 
@@ -163,11 +178,13 @@ proxy rewards over-coverage), not raw capacity. Lead with that; it's better supp
 ## Statistical rigor
 
 **Q: Single seed or multiple? Error bars? Are SFT-vs-GRPO differences significant? How much should anyone generalize?**
-- **Single training seed (42), one 0.5B model, one benchmark, a partial ~400-step checkpoint.**
-  pass@k has **item-level bootstrap CIs** but **no seed/run variance.** The Fig 1 effect sizes are
-  **synthetic placeholders** — replace with real numbers + CIs (and ideally ≥3 seeds) before
-  claiming significance. Frame the work as a **controlled case study / mechanism demonstration**,
-  not a broad empirical law.
+- **Fig 1 (Experiment A) is real** — base/SFT/GRPO exact-match accuracy. To claim SFT-vs-GRPO
+  significance, report **error bars** (bootstrap CI over the test items at minimum; ideally ≥3
+  training seeds). Confirm Experiment A's seed/step count — if it's a single seed, say so.
+- **pass@k (Experiment B)** has **item-level bootstrap CIs** but **no seed/run variance**, on one
+  0.5B and a partial (~400-step) checkpoint.
+- Net: frame the work as a **controlled case study / mechanism demonstration**, not a broad
+  empirical law — one model family, one benchmark, limited seeds.
 
 **Q: Why 0.5B at all — isn't the conclusion just "small models can't index"?**
 - 0.5B is a deliberate **methodological choice**: a small model + an exact verifier makes
